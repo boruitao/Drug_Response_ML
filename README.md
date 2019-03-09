@@ -1,1 +1,1 @@
-Predict drug responses in cancer
+Predict drug response in cancer
