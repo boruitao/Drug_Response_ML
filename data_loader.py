@@ -48,6 +48,15 @@ def load_data():
     gdsc_expr = gdsc_expr[1:, 1:]
     tcga_expr = tcga_expr[1:, 1:]
 
+    # Replace NA by NaN in drug response data
+    gdsc_dr[gdsc_dr == "NA"] = np.NaN
+    tcga_dr[tcga_dr == "NA"] = np.NaN
+
+    # Convert to float (except for tcga_dr, which is categorical)
+    gdsc_dr = gdsc_dr.astype(float)
+    gdsc_expr = gdsc_expr.astype(float)
+    tcga_expr = tcga_expr.astype(float)
+
     # Save the matrices locally
     np.save('gdsc_dr.npy', gdsc_dr)
     np.save('tcga_dr.npy', tcga_dr)
