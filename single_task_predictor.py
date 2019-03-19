@@ -86,12 +86,9 @@ for drug in y_train:
 
     # Predict the y_test drug response
     y_test_prediction_single = predict(x_test)
-    #print(y_test_prediction_single)
-    #System.exit(0)
-
-    # Insert drug response vector into y_test matrix
-    #y_test_prediction[[drug]] = y_test_prediction_single
-    #print(y_test_prediction)
+    y_test_actual_single = y_test_binary[[drug]]
+    drug_responses_0, drug_responses_1 = get_t_test_groups(y_test_actual_single, y_test_prediction_single)
+    # TO-DO: Call the t-test on drug_responses_0 and drug_response_1
 
 # Cross validation: used to select hyperparameters
 #   Do it with diff values of alpha
