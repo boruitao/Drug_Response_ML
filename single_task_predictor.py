@@ -86,7 +86,14 @@ for drug in y_train:
 
     # Predict the y_test drug response
     y_test_prediction_single = predict(x_test)
+
+    # Insert prediction into matrix of predictions
+    # TO-DO set the column of y_test_prediction to y_test_prediction_single
+
+    # Get the actual y_test binary values
     y_test_actual_single = y_test_binary[[drug]]
+
+    # Get sample groups for category 0 and category 1
     drug_responses_0, drug_responses_1 = get_t_test_groups(y_test_actual_single, y_test_prediction_single)
     # TO-DO: Call the t-test on drug_responses_0 and drug_response_1
 
