@@ -1,66 +1,20 @@
-import numpy as np
-from numpy import genfromtxt
-import os
-
-def load_file(folder, file_name):
-    return genfromtxt(folder + file_name, delimiter=',', dtype='str').transpose()
-
-def load_data():
-    folder = '../Data/'
-
-    # Load the files into string matrices
-    gdsc_dr = load_file(folder, 'gdsc_dr_lnIC50.csv')
-    tcga_dr = load_file(folder, 'tcga_dr.csv')
-    gdsc_expr = load_file(folder, 'gdsc_expr_postCB.csv')
-    tcga_expr = load_file(folder, 'tcga_expr_postCB.csv')
-
-    # Verify that gdsc_dr/tcga_dr drugs are in same order
+# Compares the column headers of two data frames
+def compare_column_headers(df_1, df_2):
+    headers_1 = list(df_1.columns.values)
+    headers_2 = list(df_2.columns.values)
     try:
-        for col in range (1, np.size(gdsc_dr, 1)):
-            assert gdsc_dr[0, col] == tcga_dr[0, col]
+        for col in range(len(headers_1)):
+            assert headers_1[col] == headers_2[col]
     except AssertionError:
-        print("AssertionError: Drug names do not match up")
+        print("AssertionError: column names do not match up")
 
-    # Verify that gdsc_expr/tcga_expr ensemble gene ids are in same order
+# Compares the row headers of two data frames
+def compare_row_headers(df_1, df_2):
+    headers_1 = list(df_1.index.values)
+    print(headers_1)
+    headers_2 = list(df_2.index.values)
     try:
-        for col in range (1, np.size(gdsc_expr, 1)):
-            assert gdsc_expr[0, col] == tcga_expr[0, col]
+        for col in range(len(headers_1)):
+            assert headers_1[col] == headers_2[col]
     except AssertionError:
-        print("AssertionError: Ensemble gene ids do not match up")
-
-    # Verify that gdsc_dr/gdsc_expr cell line ids are in same order
-    try:
-        for row in range (1, np.size(gdsc_dr, 0)):
-            assert gdsc_dr[row, 0] == gdsc_expr[row, 0]
-    except AssertionError:
-        print("AssertionError: Cell line ids do not match up")
-
-    # Verify that tcga_dr/tcga_expr patient ids are in same order
-    try:
-        for row in range (1, np.size(tcga_dr, 0)):
-            assert tcga_dr[row, 0] == tcga_expr[row, 0]
-    except AssertionError:
-        print("AssertionError: Patient ids do not match up")
-
-    # Remove the row and column names
-    gdsc_dr = gdsc_dr[1:, 1:]
-    tcga_dr = tcga_dr[1:, 1:]
-    gdsc_expr = gdsc_expr[1:, 1:]
-    tcga_expr = tcga_expr[1:, 1:]
-
-    # Replace NA by NaN in drug response data
-    gdsc_dr[gdsc_dr == "NA"] = np.NaN
-    tcga_dr[tcga_dr == "NA"] = np.NaN
-
-    # Convert to float (except for tcga_dr, which is categorical)
-    gdsc_dr = gdsc_dr.astype(float)
-    gdsc_expr = gdsc_expr.astype(float)
-    tcga_expr = tcga_expr.astype(float)
-
-    # Save the matrices locally
-    np.save('gdsc_dr.npy', gdsc_dr)
-    np.save('tcga_dr.npy', tcga_dr)
-    np.save('gdsc_expr.npy', gdsc_expr)
-    np.save('tcga_expr.npy', tcga_expr)
-
-load_data()
+        print("AssertionError: row names do not match up")

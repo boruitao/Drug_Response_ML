@@ -1,77 +1,92 @@
 import numpy as np
-import numpy.ma as ma
-import matplotlib.pyplot as plt
+import pandas as pd
 
-from sklearn import datasets, linear_model
-from sklearn.metrics import mean_squared_error, r2_score
-from sklearn.linear_model import Lasso
-from sklearn.linear_model import ElasticNet
+from sklearn.preprocessing import StandardScaler
+from sklearn_pandas import DataFrameMapper
+from sklearn.linear_model import ElasticNetCV
+from sklearn.datasets import make_regression
 
 ################# SINGLE TASK DRUG RESPONSE PREDICTOR ################# 
 
-drug_col = 0 # Column of the drug to predict (0 = Bicalutamide)
+data_path = '../Data/'
 
 # Load training and test set
-X_train = np.load('gdsc_expr.npy')
-y_train = np.load('gdsc_dr.npy')[:,drug_col]
-X_test = np.load('tcga_expr.npy')
+x_train = pd.read_csv(data_path + 'gdsc_expr_postCB.csv', index_col=0, header=None).T.set_index('cell line id')
+y_train = pd.read_csv(data_path + 'gdsc_dr_lnIC50.csv', index_col=0, header=None).T.set_index('cell line id')
+x_test = pd.read_csv(data_path + 'tcga_expr_postCB.csv', index_col=0, header=None).T.set_index('patient id')
+#y_test = pd.read_csv(data_path + 'tcga_dr.csv', index_col=0, header=None).T.set_index('patient id')
 
-# Remove rows in X_train and Y_train where the Y_train value is NaN (no drug response data for that cell line)
-mask = np.logical_not(np.ma.masked_invalid(y_train).mask)
-y_train = y_train[mask]
-X_train = X_train[mask,:]
+# Normalize data for mean 0 and standard deviation of 1
+ss = StandardScaler()
+x_train = pd.DataFrame(ss.fit_transform(x_train), index = x_train.index, columns = x_train.columns)
+y_train = pd.DataFrame(ss.fit_transform(y_train), index = y_train.index, columns = y_train.columns)
+#x_test = pd.DataFrame(ss.fit_transform(x_test), index = x_test.index, columns = x_test.columns)
 
-# #############################################################################
-# LINEAR REGRESSION
-# Source: https://scikit-learn.org/stable/auto_examples/linear_model/plot_ols.html#sphx-glr-auto-examples-linear-model-plot-ols-py
+# Replace NaN values by the mean
+x_train.fillna(x_train.mean(), inplace=True)
+#x_test.fillna(x_test.mean(), inplace=True)
 
-regr = linear_model.LinearRegression() # Create linear regression object
-regr.fit(X_train, y_train) # Train the model
-y_pred_regr = regr.predict(X_test) # Make predictions for the test set
+# Verify axes match
+#compare_column_headers(x_train, x_test)
+#compare_column_headers(y_train, y_test)
+#compare_row_headers(x_train, y_train)
+#compare_row_headers(x_test, y_test)
 
-print('Coefficients: \n', regr.coef_)
-print('Linear Regression Predictions: \n', y_pred_regr)
-#print("Mean squared error: %.2f" % mean_squared_error(y_test, y_pred))
-#print('Variance score: %.2f' % r2_score(y_test, y_pred))
+print(x_train.dtype)
+print(y_train.dtype)
 
-# Plot outputs
-#plt.scatter(X_test, y_test,  color='black')
-#plt.plot(X_test, y_pred, color='blue', linewidth=3)
-#plt.xticks(())
-#plt.yticks(())
-#plt.show()
+# Predict the response for each drug individually
+for drug in y_train:
 
-# #############################################################################
-# LASSO
-# Source: https://scikit-learn.org/stable/auto_examples/linear_model/plot_lasso_and_elasticnet.html#sphx-glr-auto-examples-linear-model-plot-lasso-and-elasticnet-py
+    # Keep only one drug column
+    y_train_single = y_train[[drug]]
 
-alpha = 0.1
-lasso = Lasso(alpha=alpha)
+    # Drop cell line ids in y_train where drug response is NaN
+    y_train_single = y_train_single.dropna()
+    non_null_ids = y_train_single.index
+    
+    # Drop cell line ids in x_train where drug response is NaN
+    x_train_single = x_train[x_train.index.isin(non_null_ids)]
 
-y_pred_lasso = lasso.fit(X_train, y_train).predict(X_test)
-print('Lasso Predictions: \n', y_pred_lasso)
-#r2_score_lasso = r2_score(y_test, y_pred_lasso)
-#print(lasso)
-#print("r^2 on test data : %f" % r2_score_lasso)
+    # Create elastic net model with five-fold cross validation 
+    regr = ElasticNetCV(cv=5, random_state=0)
+    regr.fit(x_train_single.values, y_train_single.values)
+    #print(regr.predict(x_test.values))
+    System.exit(0)
 
-# #############################################################################
-# ELASTIC NET
-# Source: https://scikit-learn.org/stable/auto_examples/linear_model/plot_lasso_and_elasticnet.html#sphx-glr-auto-examples-linear-model-plot-lasso-and-elasticnet-py
+    
 
-enet = ElasticNet(alpha=alpha, l1_ratio=0.7)
+# Cross validation: used to select hyperparameters
+#   Do it with diff values of alpha
+#   Choose a loss function to choose the alpha that minimizes loss
+#       Ex: euclidean norm, cosine similarity....
+#   Find alpha with "path" --> elasticnet CV, lasso CV
+#   Scikit has modules for cross validation and hyperparam selection
+#   If multiple hyperparams, can have a LOT of possibilites --> scikit learn help save time
+# Lasso
+#   Lasso minimize 1/2 || y - x ||
+#   L1: minimize absolute values of some of weights --> imposes sparsity
+# Elastic
+#   Has extra L2 norm of w
 
-y_pred_enet = enet.fit(X_train, y_train).predict(X_test)
-print('Lasso Predictions: \n', y_pred_enet)
-#r2_score_enet = r2_score(y_test, y_pred_enet)
-#print(enet)
-#print(y_pred_enet)
-#print("r^2 on test data : %f" % r2_score_enet)
+# Normalization of original data
+#   Figure data distribution
+#   
+# Improve code
+#   Pandas, generalizability of data loading
+#   Hyperparameter tuning
+#   Normalization
+#   T-test: scipy
+#   Can report: cross validation accuracy (check for overfitting/underfitting)
+#   Can try nonlinear models: e.g. Support vector regression
 
-# #############################################################################
-# Plot results
-#plt.plot(enet.coef_, color='lightgreen', linewidth=2, label='Elastic net coefficients')
-#plt.plot(lasso.coef_, color='gold', linewidth=2, label='Lasso coefficients')
-#plt.legend(loc='best')
-#plt.title("Lasso R^2: %f, Elastic Net R^2: %f" % (r2_score_lasso, r2_score_enet))
-#plt.show()
+# Sensitive: complete response, partial response
+# Resistant: stable disease, progressive disease
 
+# Spend time learning multi-task methods
+
+# Profile compute canada: find what is accessible to us, etc...
+#       Takes time when requesting resources: in case need for next semester
+#       Access GPUs: good for neural networks
+
+# Right things down for report immediately: so that he can give us feedback
