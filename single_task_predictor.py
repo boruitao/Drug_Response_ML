@@ -50,10 +50,10 @@ def category_to_binary(y_test):
 data_path = '../Data/'
 
 # Load training and test set
-x_train = pd.read_csv(data_path + 'gdsc_expr_postCB.csv', index_col=0, header=None).T.set_index('cell line id').iloc[0:200, 0:200]
-y_train = pd.read_csv(data_path + 'gdsc_dr_lnIC50.csv', index_col=0, header=None).T.set_index('cell line id').iloc[0:200, ]
-x_test = pd.read_csv(data_path + 'tcga_expr_postCB.csv', index_col=0, header=None).T.set_index('patient id').iloc[0:200, 0:200]
-y_test = pd.read_csv(data_path + 'tcga_dr.csv', index_col=0, header=None).T.set_index('patient id').iloc[0:200, ]
+x_train = pd.read_csv(data_path + 'gdsc_expr_postCB.csv', index_col=0, header=None).T.set_index('cell line id')#.iloc[0:200, 0:200]
+y_train = pd.read_csv(data_path + 'gdsc_dr_lnIC50.csv', index_col=0, header=None).T.set_index('cell line id')#.iloc[0:200, ]
+x_test = pd.read_csv(data_path + 'tcga_expr_postCB.csv', index_col=0, header=None).T.set_index('patient id')#.iloc[0:200, 0:200]
+y_test = pd.read_csv(data_path + 'tcga_dr.csv', index_col=0, header=None).T.set_index('patient id')#.iloc[0:200, ]
 y_test_binary = category_to_binary(y_test)
 
 # Normalize data for mean 0 and standard deviation of 1
@@ -71,8 +71,8 @@ x_test = pd.DataFrame(ss.fit_transform(x_test), index = x_test.index, columns = 
 # Matrix to store y_test predictions
 y_test_prediction = pd.DataFrame(index=y_test.index, columns=y_test.columns)
 
-# Matrix to store t-statistic and p-value for each drug
-t_test_results = pd.DataFrame(index=y_test.columns, columns=['T-statistic', 'P-value'])
+# Matrix to store drug statistics, including t-statistic and p-value for each drug
+results = y_test.describe().T.join(pd.DataFrame(index=y_test.columns, columns=['T-statistic', 'P-value']))
 
 # Predict the response for each drug individually
 for drug in y_train:
@@ -88,7 +88,7 @@ for drug in y_train:
     x_train_single = x_train[x_train.index.isin(non_null_ids)]
 
     # Create elastic net model with five-fold cross validation 
-    #print("Fitting ElasticNetCV for drug: " + drug)
+    print("Fitting ElasticNetCV for drug: " + drug)
     regr = ElasticNetCV(cv=5, random_state=0)
     regr.fit(x_train_single.values, np.ravel(y_train_single.values))
 
@@ -108,12 +108,12 @@ for drug in y_train:
     # Perform T-test
     print("Performing t-test...")
     t, p = stats.ttest_ind(drug_responses_0, drug_responses_1)
-    t_test_results.loc[drug, 'T-statistic'] = t
-    t_test_results.loc[drug, 'P-value'] = p
+    results.loc[drug, 'T-statistic'] = t
+    results.loc[drug, 'P-value'] = p
 
-# Store predictions and t-test results in csv file
+# Store predictions and results in csv file
 y_test_prediction.to_csv(data_path + 'tcga_dr_prediction(normalized).csv')
-t_test_results.to_csv(data_path + 't_test_results.csv')
+results.to_csv(data_path + 'results.csv')
 
 # Cross validation: used to select hyperparameters
 #   Do it with diff values of alpha
