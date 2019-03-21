@@ -11,7 +11,6 @@ def compare_column_headers(df_1, df_2):
 # Compares the row headers of two data frames
 def compare_row_headers(df_1, df_2):
     headers_1 = list(df_1.index.values)
-    print(headers_1)
     headers_2 = list(df_2.index.values)
     try:
         for col in range(len(headers_1)):
