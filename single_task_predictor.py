@@ -99,7 +99,7 @@ for drug in y_train:
 
     # Create elastic net model with five-fold cross validation 
     print("Fitting ElasticNetCV for drug: " + drug)
-    regr = ElasticNetCV(num_alphas=10, random_state=0) # uses too many alphas, change l1 to 0.5, num_alphas doesn't use that much time, l1 ratio takes the time, use l1 ratio = 0.5, random_state is the starting point (ensures all runs start at same point and get same results)
+    regr = ElasticNetCV(n_alphas=10, random_state=0) # uses too many alphas, change l1 to 0.5, num_alphas doesn't use that much time, l1 ratio takes the time, use l1 ratio = 0.5, random_state is the starting point (ensures all runs start at same point and get same results)
     regr.fit(x_train_single.values, np.ravel(y_train_single.values))
 
     # Produce prediction vector for y_test drug response
