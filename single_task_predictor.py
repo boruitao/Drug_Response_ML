@@ -49,8 +49,10 @@ def category_to_binary(y_test):
 # Normalizes x_train and x_test per gene
 # Stores result in csv
 def normalize(x_train, x_test):
+    ss = StandardScaler()
     for gene in x_train:
         x_train[gene] = ss.fit_transform(x_train[[gene]].values)
+    for gene in x_test:
         x_test[gene] = ss.fit_transform(x_test[[gene]].values)
     x_train.T.to_csv(data_path + 'gdsc_expr_postCB(normalized).csv')
     x_test.T.to_csv(data_path + 'tcga_expr_postCB(normalized).csv')
@@ -62,13 +64,34 @@ def verify_axes(x_train, y_train, x_test, y_test):
     compare_row_headers(x_train, y_train)
     compare_row_headers(x_test, y_test)
 
+# Perform one-tailed t-test to verify the mean of resistant group is higher than the mean of sensitive group
+# drug_responses_0: the resistant group
+# drug_responses_1: the sensitive group
+def one_tailed_t_test(drug_responses_0, drug_responses_1):
+    t, p = stats.ttest_ind(drug_responses_0, drug_responses_1)
+
+    # Correct sign
+    if t >= 0:
+        p = p / 2
+    # Incorrect sign
+    else:
+        p = 1 - p / 2
+
+    return t, p
+
 # Path to datasets
 data_path = '../Data/'
 
+# Path to results folder
+results_path = '../Results/'
+
+# Name of model being used
+model_name = 'ElasticNetCV'
+
 # Load training and test set
-x_train = pd.read_csv(data_path + 'gdsc_expr_postCB(normalized).csv', index_col=0, header=None).T.set_index('cell line id')#.iloc[0:200, 0:200]
-y_train = pd.read_csv(data_path + 'gdsc_dr_lnIC50.csv', index_col=0, header=None).T.set_index('cell line id')#.iloc[0:200, ]
-x_test = pd.read_csv(data_path + 'tcga_expr_postCB(normalized).csv', index_col=0, header=None).T.set_index('patient id')#.iloc[0:200, 0:200]
+x_train = pd.read_csv(data_path + 'gdsc_expr_postCB(normalized).csv', index_col=0, header=None).T.set_index('cell line id').apply(pd.to_numeric)#.iloc[0:200, 0:200]
+y_train = pd.read_csv(data_path + 'gdsc_dr_lnIC50.csv', index_col=0, header=None).T.set_index('cell line id').apply(pd.to_numeric)#.iloc[0:200, ]
+x_test = pd.read_csv(data_path + 'tcga_expr_postCB(normalized).csv', index_col=0, header=None).T.set_index('patient id').apply(pd.to_numeric)#.iloc[0:200, 0:200]
 y_test = pd.read_csv(data_path + 'tcga_dr.csv', index_col=0, header=None).T.set_index('patient id')#.iloc[0:200, ]
 y_test_binary = category_to_binary(y_test)
 
@@ -90,40 +113,34 @@ for drug in y_train:
     # Keep only one drug column
     y_train_single = y_train[[drug]]
 
-    # Drop cell line ids in y_train where drug response is NaN
+    # Drop rows in y_train where drug response is NaN, as well as corresponding x_train rows
     y_train_single = y_train_single.dropna()
     non_null_ids = y_train_single.index
-    
-    # Drop cell line ids in x_train where drug response is NaN
     x_train_single = x_train[x_train.index.isin(non_null_ids)]
 
-    # Create elastic net model with five-fold cross validation 
+    # Create elastic net model with five-fold cross validation
     print("Fitting ElasticNetCV for drug: " + drug)
-    regr = ElasticNetCV(n_alphas=10, random_state=0) # uses too many alphas, change l1 to 0.5, num_alphas doesn't use that much time, l1 ratio takes the time, use l1 ratio = 0.5, random_state is the starting point (ensures all runs start at same point and get same results)
+    regr = ElasticNetCV(random_state=0, l1_ratio=1)
     regr.fit(x_train_single.values, np.ravel(y_train_single.values))
 
-    # Produce prediction vector for y_test drug response
+    # Predict y_test drug response, and insert into prediction matrix
     print("Predicting y test...")
-    y_test_prediction_single = regr.predict(x_test) # RANDOM NUMBERS FOR TESTING: y_test_prediction_single = np.random.rand(len(y_train[[drug]].values))
-
-    # Insert prediction vector into matrix of predictions
+    y_test_prediction_single = regr.predict(x_test)
     y_test_prediction[drug] = y_test_prediction_single
-
-    # Get the actual y_test binary values
-    y_test_actual_single = y_test_binary[[drug]]
-
-    # Get sample groups for category 0 and category 1
-    drug_responses_0, drug_responses_1 = get_t_test_groups(y_test_actual_single.values, y_test_prediction_single)
     
     # Perform T-test
     print("Performing t-test...")
-    t, p = stats.ttest_ind(drug_responses_0, drug_responses_1)
+    y_test_actual_single = y_test_binary[[drug]]
+    drug_responses_0, drug_responses_1 = get_t_test_groups(y_test_actual_single.values, y_test_prediction_single)
+    t, p = one_tailed_t_test(drug_responses_0, drug_responses_1)
     results.loc[drug, 'T-statistic'] = t
     results.loc[drug, 'P-value'] = p
 
-# Store predictions and results in csv file
-y_test_prediction.to_csv(data_path + 'tcga_dr_prediction(normalized).csv')
-results.to_csv(data_path + 'results.csv')
+# Store predictions and results in csv files
+prediction_file_name = 'tcga_dr_prediction(' + model_name + '_normalized).csv'
+y_test_prediction.to_csv(data_path + prediction_file_name)
+results_file_name = 'results(' + model_name + ').csv'
+results.to_csv(data_path + reuslts_file_name)
 
 # Cross validation: used to select hyperparameters
 #   Do it with diff values of alpha
@@ -149,8 +166,8 @@ results.to_csv(data_path + 'results.csv')
 #   Can report: cross validation accuracy (check for overfitting/underfitting)
 #   Can try nonlinear models: e.g. Support vector regression
 
-# Sensitive: complete response, partial response
-# Resistant: stable disease, progressive disease
+# Sensitive: complete response, partial response (1)
+# Resistant: stable disease, progressive disease (0)
 
 # Spend time learning multi-task methods
 
