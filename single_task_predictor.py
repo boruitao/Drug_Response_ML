@@ -140,7 +140,7 @@ for drug in y_train:
 prediction_file_name = 'tcga_dr_prediction(' + model_name + '_normalized).csv'
 y_test_prediction.to_csv(data_path + prediction_file_name)
 results_file_name = 'results(' + model_name + ').csv'
-results.to_csv(data_path + reuslts_file_name)
+results.to_csv(results_path + reuslts_file_name)
 
 # Cross validation: used to select hyperparameters
 #   Do it with diff values of alpha
