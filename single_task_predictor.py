@@ -119,7 +119,7 @@ for drug in y_train:
     x_train_single = x_train[x_train.index.isin(non_null_ids)]
 
     # Create elastic net model with five-fold cross validation
-    print("Fitting ElasticNetCV for drug: " + drug)
+    print("Fitting " + model_name + " for drug: " + drug)
     regr = ElasticNetCV(random_state=0, l1_ratio=1)
     regr.fit(x_train_single.values, np.ravel(y_train_single.values))
 
@@ -138,9 +138,9 @@ for drug in y_train:
 
 # Store predictions and results in csv files
 prediction_file_name = 'tcga_dr_prediction(' + model_name + '_normalized).csv'
-y_test_prediction.to_csv(data_path + prediction_file_name)
+y_test_prediction.to_csv(results_path + prediction_file_name)
 results_file_name = 'results(' + model_name + ').csv'
-results.to_csv(results_path + reuslts_file_name)
+results.to_csv(results_path + results_file_name)
 
 # Cross validation: used to select hyperparameters
 #   Do it with diff values of alpha
