@@ -137,7 +137,7 @@ for drug in y_train:
     results.loc[drug, 'P-value'] = p
 
 # Store predictions and results in csv files
-prediction_file_name = 'tcga_dr_prediction(' + model_name + '_normalized).csv'
+prediction_file_name = 'tcga_dr_prediction(' + model_name + ').csv'
 y_test_prediction.to_csv(results_path + prediction_file_name)
 results_file_name = 'results(' + model_name + ').csv'
 results.to_csv(results_path + results_file_name)
