@@ -3,7 +3,7 @@ import pandas as pd
 
 from sklearn.preprocessing import StandardScaler
 from sklearn_pandas import DataFrameMapper
-from sklearn.linear_model import ElasticNetCV
+from sklearn.linear_model import LassoCV
 from sklearn.datasets import make_regression
 from scipy import stats
 
@@ -86,7 +86,7 @@ data_path = '../Data/'
 results_path = '../Results/'
 
 # Name of model being used
-model_name = 'ElasticNetCV'
+model_name = 'LassoCV'
 
 # Load training and test set
 x_train = pd.read_csv(data_path + 'gdsc_expr_postCB(normalized).csv', index_col=0, header=None).T.set_index('cell line id').apply(pd.to_numeric)#.iloc[0:200, 0:200]
@@ -120,7 +120,7 @@ for drug in y_train:
 
     # Create elastic net model with five-fold cross validation
     print("Fitting " + model_name + " for drug: " + drug)
-    regr = ElasticNetCV(random_state=0, l1_ratio=1)
+    regr = LassoCV(cv=3, random_state=0)
     regr.fit(x_train_single.values, np.ravel(y_train_single.values))
 
     # Predict y_test drug response, and insert into prediction matrix
@@ -137,7 +137,7 @@ for drug in y_train:
     results.loc[drug, 'P-value'] = p
 
 # Store predictions and results in csv files
-prediction_file_name = 'tcga_dr_prediction(' + model_name + '_normalized).csv'
+prediction_file_name = 'tcga_dr_prediction(' + model_name + ').csv'
 y_test_prediction.to_csv(results_path + prediction_file_name)
 results_file_name = 'results(' + model_name + ').csv'
 results.to_csv(results_path + results_file_name)
