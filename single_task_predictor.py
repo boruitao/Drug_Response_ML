@@ -120,7 +120,7 @@ for drug in y_train:
 
     # Create elastic net model with five-fold cross validation
     print("Fitting " + model_name + " for drug: " + drug)
-    regr = ElasticNetCV(random_state=0, l1_ratio=1)
+    regr = ElasticNetCV(random_state=0, l1_ratio=0.5)
     regr.fit(x_train_single.values, np.ravel(y_train_single.values))
 
     # Predict y_test drug response, and insert into prediction matrix
