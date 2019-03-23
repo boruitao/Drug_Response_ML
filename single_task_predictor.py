@@ -1,6 +1,8 @@
 import numpy as np
 import pandas as pd
 
+from data_loader import compare_column_headers, compare_row_headers
+from sklearn.svm import SVR
 from sklearn.preprocessing import StandardScaler
 from sklearn_pandas import DataFrameMapper
 from sklearn.linear_model import ElasticNetCV
@@ -86,7 +88,7 @@ data_path = '../Data/'
 results_path = '../Results/'
 
 # Name of model being used
-model_name = 'ElasticNetCV'
+model_name = 'SVR'
 
 # Load training and test set
 x_train = pd.read_csv(data_path + 'gdsc_expr_postCB(normalized).csv', index_col=0, header=None).T.set_index('cell line id').apply(pd.to_numeric)#.iloc[0:200, 0:200]
@@ -120,7 +122,7 @@ for drug in y_train:
 
     # Create elastic net model with five-fold cross validation
     print("Fitting " + model_name + " for drug: " + drug)
-    regr = ElasticNetCV(random_state=0, l1_ratio=0.5)
+    regr = SVR()
     regr.fit(x_train_single.values, np.ravel(y_train_single.values))
 
     # Predict y_test drug response, and insert into prediction matrix
