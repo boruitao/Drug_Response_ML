@@ -7,8 +7,6 @@ from sklearn.linear_model import MultiTaskLasso, MultiTaskLassoCV
 from sklearn.datasets import make_regression
 from scipy import stats
 
-################# SINGLE TASK DRUG RESPONSE PREDICTOR ################# 
-
 # Takes two numpy arrays as input: y_actual, y_predicted
 # Returns two sample groups:
 #   The first contains a list of predicted drug response values for which the patient's actual response was 0
