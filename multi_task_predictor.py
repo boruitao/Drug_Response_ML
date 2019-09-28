@@ -5,6 +5,7 @@ from sklearn.preprocessing import StandardScaler
 from sklearn_pandas import DataFrameMapper
 from sklearn.linear_model import MultiTaskLasso, MultiTaskLassoCV
 from sklearn.datasets import make_regression
+from sklearn.impute import SimpleImputer
 from scipy import stats
 
 # Takes two numpy arrays as input: y_actual, y_predicted
@@ -51,8 +52,8 @@ def normalize(x_train, x_test):
     for gene in x_train: # Same genes in both x_train and x_test, so loop once
         x_train[gene] = ss.fit_transform(x_train[[gene]].values) # Figure out the normalization parameters on the training set
         x_test[gene] = ss.transform(x_test[[gene]].values) # Use the same normalization parameters used on the training set  
-    x_train.T.to_csv(data_path + 'gdsc_expr_postCB(normalized).csv')
-    x_test.T.to_csv(data_path + 'tcga_expr_postCB(normalized).csv')
+    x_train.T.to_csv(data_path + 'gdsc_expr_postCB(normalized)1.csv')
+    x_test.T.to_csv(data_path + 'tcga_expr_postCB(normalized)1.csv')
 
 # Verify that the axes match
 def verify_axes(x_train, y_train, x_test, y_test):
@@ -86,21 +87,25 @@ results_path = '../Results/'
 model_name = 'MultitaskLassoCV'
 
 # Load training and test set
-x_train = pd.read_csv(data_path + 'gdsc_expr_postCB.csv', index_col=0, header=None).T.set_index('cell line id').apply(pd.to_numeric)
+x_train = pd.read_csv(data_path + 'gdsc_expr_postCB(normalized).csv', index_col=0, header=None).T.set_index('cell line id').apply(pd.to_numeric)
 y_train = pd.read_csv(data_path + 'gdsc_dr_lnIC50.csv', index_col=0, header=None).T.set_index('cell line id').apply(pd.to_numeric)
-x_test = pd.read_csv(data_path + 'tcga_expr_postCB.csv', index_col=0, header=None).T.set_index('patient id').apply(pd.to_numeric)
+x_test = pd.read_csv(data_path + 'tcga_expr_postCB(normalized).csv', index_col=0, header=None).T.set_index('patient id').apply(pd.to_numeric)
 y_test = pd.read_csv(data_path + 'tcga_dr.csv', index_col=0, header=None).T.set_index('patient id')
 y_test_binary = category_to_binary(y_test)
 
 #normalize(x_train, x_test)
 
+# Impute missing values in y_train
+imp = SimpleImputer(missing_values=np.nan, strategy='mean') # If a drug's DR is NaN, set it to the mean of the cell lines' DR for that drug
+y_train = pd.DataFrame(data=imp.fit_transform(y_train), index=y_train.index, columns=y_train.columns)
+
 # Matrix to store drug statistics, including t-statistic and p-value for each drug
 results = y_test.describe().T.join(pd.DataFrame(index=y_test.columns, columns=['T-statistic', 'P-value']))
 
 # Drop cell line id in x_train and y_train if one of the drug responses is NaN
-y_train = y_train.dropna() # Drop rows of y_train
-non_null_ids = y_train.index # Get cell line ids that don't have null drug responses
-x_train = x_train[x_train.index.isin(non_null_ids)]
+# y_train = y_train.dropna() # Drop rows of y_train
+# non_null_ids = y_train.index # Get cell line ids that don't have null drug responses
+# x_train = x_train[x_train.index.isin(non_null_ids)]
 
 # Create multitask lasso model
 print("Fitting MultiTask Lasso")
