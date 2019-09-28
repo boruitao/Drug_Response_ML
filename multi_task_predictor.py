@@ -48,10 +48,9 @@ def category_to_binary(y_test):
 # Stores result in csv
 def normalize(x_train, x_test):
     ss = StandardScaler()
-    for gene in x_train:
-        x_train[gene] = ss.fit_transform(x_train[[gene]].values)
-    for gene in x_test:
-        x_test[gene] = ss.fit_transform(x_test[[gene]].values)
+    for gene in x_train: # Same genes in both x_train and x_test, so loop once
+        x_train[gene] = ss.fit_transform(x_train[[gene]].values) # Figure out the normalization parameters on the training set
+        x_test[gene] = ss.transform(x_test[[gene]].values) # Use the same normalization parameters used on the training set  
     x_train.T.to_csv(data_path + 'gdsc_expr_postCB(normalized).csv')
     x_test.T.to_csv(data_path + 'tcga_expr_postCB(normalized).csv')
 
@@ -87,17 +86,13 @@ results_path = '../Results/'
 model_name = 'MultitaskLassoCV'
 
 # Load training and test set
-x_train = pd.read_csv(data_path + 'gdsc_expr_postCB.csv', index_col=0, header=None).T.set_index('cell line id')#.iloc[0:200, 0:200]
-y_train = pd.read_csv(data_path + 'gdsc_dr_lnIC50.csv', index_col=0, header=None).T.set_index('cell line id')#.iloc[0:200, ]
-x_test = pd.read_csv(data_path + 'tcga_expr_postCB.csv', index_col=0, header=None).T.set_index('patient id')#.iloc[0:200, 0:200]
-y_test = pd.read_csv(data_path + 'tcga_dr.csv', index_col=0, header=None).T.set_index('patient id')#.iloc[0:200, ]
+x_train = pd.read_csv(data_path + 'gdsc_expr_postCB.csv', index_col=0, header=None).T.set_index('cell line id').apply(pd.to_numeric)
+y_train = pd.read_csv(data_path + 'gdsc_dr_lnIC50.csv', index_col=0, header=None).T.set_index('cell line id').apply(pd.to_numeric)
+x_test = pd.read_csv(data_path + 'tcga_expr_postCB.csv', index_col=0, header=None).T.set_index('patient id').apply(pd.to_numeric)
+y_test = pd.read_csv(data_path + 'tcga_dr.csv', index_col=0, header=None).T.set_index('patient id')
 y_test_binary = category_to_binary(y_test)
 
-# Normalize data for mean 0 and standard deviation of 1
-ss = StandardScaler()
-x_train = pd.DataFrame(ss.fit_transform(x_train), index = x_train.index, columns = x_train.columns)
-y_train = pd.DataFrame(ss.fit_transform(y_train), index = y_train.index, columns = y_train.columns)
-x_test = pd.DataFrame(ss.fit_transform(x_test), index = x_test.index, columns = x_test.columns)
+#normalize(x_train, x_test)
 
 # Matrix to store drug statistics, including t-statistic and p-value for each drug
 results = y_test.describe().T.join(pd.DataFrame(index=y_test.columns, columns=['T-statistic', 'P-value']))
