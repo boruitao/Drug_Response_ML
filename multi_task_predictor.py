@@ -1,5 +1,6 @@
 import numpy as np
 import pandas as pd
+import time
 
 from sklearn.preprocessing import StandardScaler
 from sklearn_pandas import DataFrameMapper
@@ -77,6 +78,8 @@ def one_tailed_t_test(drug_responses_0, drug_responses_1):
 
     return t, p
 
+start_time = time.time()
+
 # Path to datasets
 data_path = '../Data/'
 
@@ -84,7 +87,8 @@ data_path = '../Data/'
 results_path = '../Results/'
 
 # Name of model being used
-model_name = 'MultitaskLassoCV'
+model_name = 'MultitaskLassoCV-cv=3,n_alphas=10'
+# model_name = 'MultitaskLasso'
 
 # Load training and test set
 x_train = pd.read_csv(data_path + 'gdsc_expr_postCB(normalized).csv', index_col=0, header=None).T.set_index('cell line id').apply(pd.to_numeric)
@@ -101,6 +105,7 @@ y_train = pd.DataFrame(data=imp.fit_transform(y_train), index=y_train.index, col
 
 # Matrix to store drug statistics, including t-statistic and p-value for each drug
 results = y_test.describe().T.join(pd.DataFrame(index=y_test.columns, columns=['T-statistic', 'P-value']))
+results = results.drop(["count", "unique", "top", "freq"], axis=1)
 
 # Drop cell line id in x_train and y_train if one of the drug responses is NaN
 # y_train = y_train.dropna() # Drop rows of y_train
@@ -108,12 +113,9 @@ results = y_test.describe().T.join(pd.DataFrame(index=y_test.columns, columns=['
 # x_train = x_train[x_train.index.isin(non_null_ids)]
 
 # Create multitask lasso model
-print("Fitting MultiTask Lasso")
-#regr = MultiTaskLasso(alpha=0.0001).fit(x_train, y_train)
-regr = MultiTaskLassoCV(cv=5, random_state=0).fit(x_train, y_train)
-#print(coef_multi_task_lasso_)
-
-####################################################################################################
+print("Fitting " + model_name + "...")
+# regr = MultiTaskLasso(alpha=0.5).fit(x_train, y_train)
+regr = MultiTaskLassoCV(cv=3, n_alphas=10).fit(x_train, y_train)
 
 # Predict y_test
 print("Predicting y test...")
@@ -130,14 +132,19 @@ for drug in y_test_binary.columns:
     drug_responses_0, drug_responses_1 = get_t_test_groups(y_test_actual_single.values, y_test_prediction_single)
 
     # Perform T-test
-    print("Performing t-test...")
+    print("Performing t-test for drug: " + str(drug))
     drug_responses_0, drug_responses_1 = get_t_test_groups(y_test_actual_single.values, y_test_prediction_single)
     t, p = one_tailed_t_test(drug_responses_0, drug_responses_1)
     results.loc[drug, 'T-statistic'] = t
     results.loc[drug, 'P-value'] = p
 
 # Store predictions and results in csv files
-prediction_file_name = 'tcga_dr_prediction(' + model_name + ').csv'
-y_test_prediction.to_csv(results_path + prediction_file_name)
+# prediction_file_name = 'tcga_dr_prediction(' + model_name + ').csv'
+# y_test_prediction.to_csv(results_path + prediction_file_name)
 results_file_name = 'results(' + model_name + ').csv'
 results.to_csv(results_path + results_file_name)
+
+# Print the total running time
+end_time = time.time()
+total_time = end_time - start_time
+print("Total running time was: " + str(total_time) + " seconds")
