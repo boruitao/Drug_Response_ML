@@ -1,13 +1,13 @@
 import numpy as np
 import pandas as pd
+import time
 
 from sklearn.preprocessing import StandardScaler
 from sklearn_pandas import DataFrameMapper
-from sklearn.linear_model import ElasticNetCV
+from sklearn.neural_network import MLPRegressor
 from sklearn.datasets import make_regression
+from sklearn.impute import SimpleImputer
 from scipy import stats
-
-################# SINGLE TASK DRUG RESPONSE PREDICTOR ################# 
 
 # Takes two numpy arrays as input: y_actual, y_predicted
 # Returns two sample groups:
@@ -50,12 +50,11 @@ def category_to_binary(y_test):
 # Stores result in csv
 def normalize(x_train, x_test):
     ss = StandardScaler()
-    for gene in x_train:
-        x_train[gene] = ss.fit_transform(x_train[[gene]].values)
-    for gene in x_test:
-        x_test[gene] = ss.fit_transform(x_test[[gene]].values)
-    x_train.T.to_csv(data_path + 'gdsc_expr_postCB(normalized).csv')
-    x_test.T.to_csv(data_path + 'tcga_expr_postCB(normalized).csv')
+    for gene in x_train: # Same genes in both x_train and x_test, so loop once
+        x_train[gene] = ss.fit_transform(x_train[[gene]].values) # Figure out the normalization parameters on the training set
+        x_test[gene] = ss.transform(x_test[[gene]].values) # Use the same normalization parameters used on the training set  
+    x_train.T.to_csv(data_path + 'gdsc_expr_postCB(normalized)1.csv')
+    x_test.T.to_csv(data_path + 'tcga_expr_postCB(normalized)1.csv')
 
 # Verify that the axes match
 def verify_axes(x_train, y_train, x_test, y_test):
@@ -79,6 +78,8 @@ def one_tailed_t_test(drug_responses_0, drug_responses_1):
 
     return t, p
 
+start_time = time.time()
+
 # Path to datasets
 data_path = '../Data/'
 
@@ -86,13 +87,13 @@ data_path = '../Data/'
 results_path = '../Results/'
 
 # Name of model being used
-model_name = 'ElasticNetCV'
+model_name = 'MLPRegressor'
 
 # Load training and test set
-x_train = pd.read_csv(data_path + 'gdsc_expr_postCB(normalized).csv', index_col=0, header=None).T.set_index('cell line id').apply(pd.to_numeric)#.iloc[0:200, 0:200]
-y_train = pd.read_csv(data_path + 'gdsc_dr_lnIC50.csv', index_col=0, header=None).T.set_index('cell line id').apply(pd.to_numeric)#.iloc[0:200, ]
-x_test = pd.read_csv(data_path + 'tcga_expr_postCB(normalized).csv', index_col=0, header=None).T.set_index('patient id').apply(pd.to_numeric)#.iloc[0:200, 0:200]
-y_test = pd.read_csv(data_path + 'tcga_dr.csv', index_col=0, header=None).T.set_index('patient id')#.iloc[0:200, ]
+x_train = pd.read_csv(data_path + 'gdsc_expr_postCB(normalized).csv', index_col=0, header=None, low_memory=False).T.set_index('cell line id').apply(pd.to_numeric)
+y_train = pd.read_csv(data_path + 'gdsc_dr_lnIC50.csv', index_col=0, header=None, low_memory=False).T.set_index('cell line id').apply(pd.to_numeric)
+x_test = pd.read_csv(data_path + 'tcga_expr_postCB(normalized).csv', index_col=0, header=None, low_memory=False).T.set_index('patient id').apply(pd.to_numeric)
+y_test = pd.read_csv(data_path + 'tcga_dr.csv', index_col=0, header=None, low_memory=False).T.set_index('patient id')
 y_test_binary = category_to_binary(y_test)
 
 # Normalize data for mean 0 and standard deviation of 1
@@ -106,6 +107,7 @@ y_test_prediction = pd.DataFrame(index=y_test.index, columns=y_test.columns)
 
 # Matrix to store drug statistics, including t-statistic and p-value for each drug
 results = y_test.describe().T.join(pd.DataFrame(index=y_test.columns, columns=['T-statistic', 'P-value']))
+results = results.drop(["count", "unique", "top", "freq"], axis=1)
 
 # Predict the response for each drug individually
 for drug in y_train:
@@ -120,7 +122,7 @@ for drug in y_train:
 
     # Create elastic net model with five-fold cross validation
     print("Fitting " + model_name + " for drug: " + drug)
-    regr = ElasticNetCV(random_state=0, l1_ratio=0.5)
+    regr = MLPRegressor(activation='logistic')
     regr.fit(x_train_single.values, np.ravel(y_train_single.values))
 
     # Predict y_test drug response, and insert into prediction matrix
@@ -136,69 +138,14 @@ for drug in y_train:
     results.loc[drug, 'T-statistic'] = t
     results.loc[drug, 'P-value'] = p
 
+    current_time = time.time()
+    print("Current time: " + str(current_time - start_time))
+
 # Store predictions and results in csv files
-prediction_file_name = 'tcga_dr_prediction(' + model_name + ').csv'
-y_test_prediction.to_csv(results_path + prediction_file_name)
 results_file_name = 'results(' + model_name + ').csv'
 results.to_csv(results_path + results_file_name)
 
-# Cross validation: used to select hyperparameters
-#   Do it with diff values of alpha
-#   Choose a loss function to choose the alpha that minimizes loss
-#       Ex: euclidean norm, cosine similarity....
-#   Find alpha with "path" --> elasticnet CV, lasso CV
-#   Scikit has modules for cross validation and hyperparam selection
-#   If multiple hyperparams, can have a LOT of possibilites --> scikit learn help save time
-# Lasso
-#   Lasso minimize 1/2 || y - x ||
-#   L1: minimize absolute values of some of weights --> imposes sparsity
-# Elastic
-#   Has extra L2 norm of w
-
-# Normalization of original data
-#   Figure data distribution
-#   
-# Improve code
-#   Pandas, generalizability of data loading
-#   Hyperparameter tuning
-#   Normalization
-#   T-test: scipy
-#   Can report: cross validation accuracy (check for overfitting/underfitting)
-#   Can try nonlinear models: e.g. Support vector regression
-
-# Sensitive: complete response, partial response (1)
-# Resistant: stable disease, progressive disease (0)
-
-# Spend time learning multi-task methods
-
-# Profile compute canada: find what is accessible to us, etc...
-#       Takes time when requesting resources: in case need for next semester
-#       Access GPUs: good for neural networks
-
-# Right things down for report immediately: so that he can give us feedback
-
-# 2 sided compare IC50 smaller bigger
-
-############################### MEETING MARCH 20 ###############################
-#
-# Fix ElasticNetCV to save time
-# Look at compute cancer canada: can we get GPUs?
-# Check out Andrew Angee deep learning on youtube
-# Start maybe moving toward deep learning: need to see what resources are available on CC to get a grant in time for next semester
-# Can GPUs be accessible? Deadline to get is in november
-# Do students get cloud assignment? Look into it
-# May not need GPUs for small neural nets
-# (1) Try 3-4 other single task models (other than elastic net)
-    # Lasso
-    # Support vector regression
-    # Random forests
-    # Support vector regression with RBF kernel (Gaussian kernel)
-    # Note: can convert IC50 to binary to make it a clasification task
-# Remember to fix normalization and t-test
-# (2) Can start to implement a single task neural network architecture: look into different hyperparams (relu, etc...)
-# (3) Send our report draft to Amin before deadline to get feedback
-# What kind of data should we report?
-#   Can make figures: 
-#       Box-plot (MATPLOTLIB) y-axis = predicted IC50 of drug, x-axis = sensitive, resistant
-#           red line = median, blue box contains standard deviation
-#       Maybe include ElasticNet path graphs: may have to retrain after fitting?
+# Print the total running time
+end_time = time.time()
+total_time = end_time - start_time
+print("Total running time was: " + str(total_time) + " seconds")
