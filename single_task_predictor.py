@@ -1,6 +1,8 @@
 import numpy as np
 import pandas as pd
 import time
+import math
+import tensorflow as tf
 
 from sklearn.preprocessing import StandardScaler
 from sklearn_pandas import DataFrameMapper
@@ -87,7 +89,7 @@ data_path = '../Data/'
 results_path = '../Results/'
 
 # Name of model being used
-model_name = 'MLPRegressor'
+model_name = 'Keras - Sequential, Dense, layers=32,32,1, activation=relu, optimizer=adam, loss=mse, batch_size=100 (1)'
 
 # Load training and test set
 x_train = pd.read_csv(data_path + 'gdsc_expr_postCB(normalized).csv', index_col=0, header=None, low_memory=False).T.set_index('cell line id').apply(pd.to_numeric)
@@ -95,12 +97,6 @@ y_train = pd.read_csv(data_path + 'gdsc_dr_lnIC50.csv', index_col=0, header=None
 x_test = pd.read_csv(data_path + 'tcga_expr_postCB(normalized).csv', index_col=0, header=None, low_memory=False).T.set_index('patient id').apply(pd.to_numeric)
 y_test = pd.read_csv(data_path + 'tcga_dr.csv', index_col=0, header=None, low_memory=False).T.set_index('patient id')
 y_test_binary = category_to_binary(y_test)
-
-# Normalize data for mean 0 and standard deviation of 1
-#normalize(x_train, x_test)
-
-# Verify axes match
-#verify_axes(x_train, y_train, x_test, y_test)
 
 # Matrix to store y_test predictions
 y_test_prediction = pd.DataFrame(index=y_test.index, columns=y_test.columns)
@@ -120,14 +116,41 @@ for drug in y_train:
     non_null_ids = y_train_single.index
     x_train_single = x_train[x_train.index.isin(non_null_ids)]
 
-    # Create elastic net model with five-fold cross validation
+    # Split into training and validation set
+    # training_split = 0.8
+    # n_samples_training = math.ceil(training_split * x_train_single.shape[0])
+    # n_samples_val = x_train_single.shape[0] - n_samples_training
+
+    # x_train_fitting = x_train_single.values[:n_samples_training]
+    # y_train_fitting = np.ravel(y_train_single.values)[:n_samples_training]
+    # x_val = x_train_single.values[-n_samples_val:]
+    # y_val = np.ravel(y_train_single.values)[-n_samples_val:]
+
+    # Define the model
+    model = tf.keras.models.Sequential()
+    model.add(tf.keras.layers.Flatten())
+    model.add(tf.keras.layers.Dense(32, activation=tf.nn.relu, input_dim=x_train.shape[1])) # Input dimension is number of genes
+    model.add(tf.keras.layers.Dense(32, activation=tf.nn.relu))
+    model.add(tf.keras.layers.Dense(1)) # Output
+
+    # Compile the model
+    model.compile(optimizer='adam',
+            loss='mse')
+
+    # Fit the model
     print("Fitting " + model_name + " for drug: " + drug)
-    regr = MLPRegressor(activation='logistic')
-    regr.fit(x_train_single.values, np.ravel(y_train_single.values))
+    # regr = MLPRegressor(activation='logistic', learning_rate_init=0.0002)
+    # regr.fit(x_train_single.values, np.ravel(y_train_single.values))
+    model.fit(x_train_single.values, np.ravel(y_train_single.values), batch_size=100, validation_split=0.2, epochs=3)
+
+    # val_loss, val_acc = model.evaluate(x_val, y_val)
+    # print("Validation loss: " + str(val_loss))
+    # print("Validation accuracy: " + str(val_acc))
 
     # Predict y_test drug response, and insert into prediction matrix
     print("Predicting y test...")
-    y_test_prediction_single = regr.predict(x_test)
+    # y_test_prediction_single = regr.predict(x_test)
+    y_test_prediction_single = model.predict(x_test.values)
     y_test_prediction[drug] = y_test_prediction_single
     
     # Perform T-test
@@ -137,9 +160,11 @@ for drug in y_train:
     t, p = one_tailed_t_test(drug_responses_0, drug_responses_1)
     results.loc[drug, 'T-statistic'] = t
     results.loc[drug, 'P-value'] = p
+    print("T-statistic: " + str(t))
+    print("P-value: " + str(p))
 
     current_time = time.time()
-    print("Current time: " + str(current_time - start_time))
+    print("Current time: " + str(current_time - start_time) + "\n")
 
 # Store predictions and results in csv files
 results_file_name = 'results(' + model_name + ').csv'
