@@ -87,7 +87,7 @@ data_path = '../Data/'
 results_path = '../Results/'
 
 # Name of model being used
-model_name = 'MLPRegressor'
+model_name = 'MLPRegressor-Activation=logistic (1)'
 
 # Load training and test set
 x_train = pd.read_csv(data_path + 'gdsc_expr_postCB(normalized).csv', index_col=0, header=None, low_memory=False).T.set_index('cell line id').apply(pd.to_numeric)
@@ -96,11 +96,12 @@ x_test = pd.read_csv(data_path + 'tcga_expr_postCB(normalized).csv', index_col=0
 y_test = pd.read_csv(data_path + 'tcga_dr.csv', index_col=0, header=None, low_memory=False).T.set_index('patient id')
 y_test_binary = category_to_binary(y_test)
 
-# Normalize data for mean 0 and standard deviation of 1
-#normalize(x_train, x_test)
-
-# Verify axes match
-#verify_axes(x_train, y_train, x_test, y_test)
+# Drop the drugs with low sample sizes (to speed of running time)
+columns = ['dabrafenib','erlotinib','gefitinib','imatinib','lapatinib','methotrexate','sunitinib','trametinib','veliparib','vinblastine']
+y_train = y_train.drop(columns, 1)
+y_test = y_test.drop(columns, 1)
+print(y_train)
+exit(1)
 
 # Matrix to store y_test predictions
 y_test_prediction = pd.DataFrame(index=y_test.index, columns=y_test.columns)
