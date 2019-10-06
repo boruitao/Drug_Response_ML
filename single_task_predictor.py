@@ -1,6 +1,7 @@
 import numpy as np
 import pandas as pd
 import time
+import math
 
 from sklearn.preprocessing import StandardScaler
 from sklearn_pandas import DataFrameMapper
@@ -87,7 +88,7 @@ data_path = '../Data/'
 results_path = '../Results/'
 
 # Name of model being used
-model_name = 'MLPRegressor-Activation=logistic (1)'
+model_name = 'MLPRegressor - random_state=0, activation=logistic, early_stopping=True'
 
 # Load training and test set
 x_train = pd.read_csv(data_path + 'gdsc_expr_postCB(normalized).csv', index_col=0, header=None, low_memory=False).T.set_index('cell line id').apply(pd.to_numeric)
@@ -100,8 +101,16 @@ y_test_binary = category_to_binary(y_test)
 columns = ['dabrafenib','erlotinib','gefitinib','imatinib','lapatinib','methotrexate','sunitinib','trametinib','veliparib','vinblastine']
 y_train = y_train.drop(columns, 1)
 y_test = y_test.drop(columns, 1)
-print(y_train)
-exit(1)
+
+# Split into training and validation set
+training_split = 0.8
+n_samples_training = math.ceil(training_split * x_train.shape[0])
+n_samples_val = x_train.shape[0] - n_samples_training
+
+x_train_ = x_train.head(n_samples_training)
+y_train_ = y_train.head(n_samples_training)
+x_val = x_train.tail(n_samples_val)
+y_val = y_train.tail(n_samples_val)
 
 # Matrix to store y_test predictions
 y_test_prediction = pd.DataFrame(index=y_test.index, columns=y_test.columns)
@@ -111,20 +120,30 @@ results = y_test.describe().T.join(pd.DataFrame(index=y_test.columns, columns=['
 results = results.drop(["count", "unique", "top", "freq"], axis=1)
 
 # Predict the response for each drug individually
-for drug in y_train:
+for drug in y_train_:
 
     # Keep only one drug column
-    y_train_single = y_train[[drug]]
+    y_train_single = y_train_[[drug]]
 
     # Drop rows in y_train where drug response is NaN, as well as corresponding x_train rows
     y_train_single = y_train_single.dropna()
     non_null_ids = y_train_single.index
-    x_train_single = x_train[x_train.index.isin(non_null_ids)]
+    x_train_single = x_train_[x_train_.index.isin(non_null_ids)]
+
+    # Drop rows in y_val where drug response is NaN, as well as corresponding x_val rows
+    y_val_single = y_val[[drug]]
+    y_val_single = y_val_single.dropna()
+    non_null_ids_ = y_val_single.index
+    x_val_single = x_val[x_val.index.isin(non_null_ids_)]
 
     # Create elastic net model with five-fold cross validation
     print("Fitting " + model_name + " for drug: " + drug)
-    regr = MLPRegressor(activation='logistic')
+    regr = MLPRegressor(random_state=0, activation='logistic')
     regr.fit(x_train_single.values, np.ravel(y_train_single.values))
+
+     # Accuracy
+    print("Training accuracy: " + str(regr.score(x_train_single.values, np.ravel(y_train_single.values))))
+    print("Validation accuracy: " + str(regr.score(x_val_single.values, np.ravel(y_val_single.values))))
 
     # Predict y_test drug response, and insert into prediction matrix
     print("Predicting y test...")
@@ -138,9 +157,11 @@ for drug in y_train:
     t, p = one_tailed_t_test(drug_responses_0, drug_responses_1)
     results.loc[drug, 'T-statistic'] = t
     results.loc[drug, 'P-value'] = p
+    print("T-statistic: " + str(t))
+    print("P-value: " + str(p))
 
     current_time = time.time()
-    print("Current time: " + str(current_time - start_time))
+    print("Current time: " + str(current_time - start_time) + "\n")
 
 # Store predictions and results in csv files
 results_file_name = 'results(' + model_name + ').csv'
