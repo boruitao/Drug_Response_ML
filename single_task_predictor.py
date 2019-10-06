@@ -116,16 +116,6 @@ for drug in y_train:
     non_null_ids = y_train_single.index
     x_train_single = x_train[x_train.index.isin(non_null_ids)]
 
-    # Split into training and validation set
-    # training_split = 0.8
-    # n_samples_training = math.ceil(training_split * x_train_single.shape[0])
-    # n_samples_val = x_train_single.shape[0] - n_samples_training
-
-    # x_train_fitting = x_train_single.values[:n_samples_training]
-    # y_train_fitting = np.ravel(y_train_single.values)[:n_samples_training]
-    # x_val = x_train_single.values[-n_samples_val:]
-    # y_val = np.ravel(y_train_single.values)[-n_samples_val:]
-
     # Define the model
     model = tf.keras.models.Sequential()
     model.add(tf.keras.layers.Flatten())
@@ -139,17 +129,10 @@ for drug in y_train:
 
     # Fit the model
     print("Fitting " + model_name + " for drug: " + drug)
-    # regr = MLPRegressor(activation='logistic', learning_rate_init=0.0002)
-    # regr.fit(x_train_single.values, np.ravel(y_train_single.values))
     model.fit(x_train_single.values, np.ravel(y_train_single.values), batch_size=100, validation_split=0.2, epochs=3)
-
-    # val_loss, val_acc = model.evaluate(x_val, y_val)
-    # print("Validation loss: " + str(val_loss))
-    # print("Validation accuracy: " + str(val_acc))
 
     # Predict y_test drug response, and insert into prediction matrix
     print("Predicting y test...")
-    # y_test_prediction_single = regr.predict(x_test)
     y_test_prediction_single = model.predict(x_test.values)
     y_test_prediction[drug] = y_test_prediction_single
     
