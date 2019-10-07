@@ -88,7 +88,7 @@ data_path = '../Data/'
 results_path = '../Results/'
 
 # Name of model being used
-model_name = 'MLPRegressor - random_state=0, activation=logistic, hidden_layer_sizes=(25,)'
+model_name = 'MLPRegressor - random_state=0, activation=logistic, hidden_layer_sizes=(25,), max_iter=400'
 
 # Load training and test set
 x_train = pd.read_csv(data_path + 'gdsc_expr_postCB(normalized).csv', index_col=0, header=None, low_memory=False).T.set_index('cell line id').apply(pd.to_numeric)
@@ -138,7 +138,7 @@ for drug in y_train_:
 
     # Create elastic net model with five-fold cross validation
     print("Fitting " + model_name + " for drug: " + drug)
-    regr = MLPRegressor(random_state=0, activation='logistic', hidden_layer_sizes=(25,))
+    regr = MLPRegressor(random_state=0, activation='logistic', hidden_layer_sizes=(25,), max_iter=400)
     regr.fit(x_train_single.values, np.ravel(y_train_single.values))
 
      # Accuracy
