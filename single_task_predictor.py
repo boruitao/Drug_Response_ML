@@ -143,7 +143,7 @@ for drug in y_train:
     regr = MLPRegressor()
     parameters = {'random_state':[0], 'activation':['relu','logistic'], 'hidden_layer_sizes':[(25,), (100,)]}
 
-    clf = GridSearchCV(regr, parameters, cv=5)
+    clf = GridSearchCV(regr, parameters, cv=5, verbose=10)
     clf.fit(x_train_single.values, np.ravel(y_train_single.values))
     print("Cross validation results: ")
     print(clf.cv_results_)
@@ -151,7 +151,7 @@ for drug in y_train:
 
     # Predict y_test drug response, and insert into prediction matrix
     print("Predicting y test...")
-    y_test_prediction_single =  regr.predict(x_test)
+    y_test_prediction_single =  clf.predict(x_test)
     y_test_prediction[drug] = y_test_prediction_single
     
     # Perform T-test
