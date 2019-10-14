@@ -6,6 +6,7 @@ import math
 from sklearn.preprocessing import StandardScaler
 from sklearn_pandas import DataFrameMapper
 from sklearn.neural_network import MLPRegressor
+from sklearn.linear_model import ElasticNet
 from sklearn.datasets import make_regression
 from sklearn.impute import SimpleImputer
 from sklearn.model_selection import GridSearchCV
@@ -92,9 +93,9 @@ results_path = '../Results/'
 model_name = 'MLPRegressor ' + str(time.time())
 
 # Load training and test set
-x_train = pd.read_csv(data_path + 'gdsc_expr_postCB(normalized).csv', index_col=0, header=None, low_memory=False).T.set_index('cell line id').apply(pd.to_numeric)
+x_train = pd.read_csv(data_path + 'gdsc_expr_postCB(normalized).csv', index_col=0, header=None, low_memory=False).T.set_index('cell line id').apply(pd.to_numeric).iloc[:,0:200]
 y_train = pd.read_csv(data_path + 'gdsc_dr_lnIC50.csv', index_col=0, header=None, low_memory=False).T.set_index('cell line id').apply(pd.to_numeric)
-x_test = pd.read_csv(data_path + 'tcga_expr_postCB(normalized).csv', index_col=0, header=None, low_memory=False).T.set_index('patient id').apply(pd.to_numeric)
+x_test = pd.read_csv(data_path + 'tcga_expr_postCB(normalized).csv', index_col=0, header=None, low_memory=False).T.set_index('patient id').apply(pd.to_numeric).iloc[:,0:200]
 y_test = pd.read_csv(data_path + 'tcga_dr.csv', index_col=0, header=None, low_memory=False).T.set_index('patient id')
 y_test_binary = category_to_binary(y_test)
 
@@ -140,14 +141,17 @@ for drug in y_train:
     # Create and fit model
     print("Fitting " + model_name + " for drug: " + drug)
     
-    regr = MLPRegressor()
-    parameters = {'random_state':[0], 'activation':['relu','logistic'], 'hidden_layer_sizes':[(25,), (100,)]}
+    #regr = MLPRegressor()
+    #parameters = {'random_state':[0], 'activation':['relu','logistic'], 'hidden_layer_sizes':[(25,), (100,)]}
+    regr = ElasticNet()
+    parameters = {'random_state':[0]}
 
-    clf = GridSearchCV(regr, parameters, cv=5, verbose=10)
+    clf = GridSearchCV(regr, parameters, cv=5, verbose=10, return_train_score=True)
     clf.fit(x_train_single.values, np.ravel(y_train_single.values))
-    print("Cross validation results: ")
-    print(clf.cv_results_)
-    print("Best accuracy: " + str(clf.best_score_))
+    cv_results = clf.cv_results_ # dict of results
+    print("CV mean train scores: " + str(cv_results['mean_train_score']))
+    print("CV mean test scores: " + str(cv_results['mean_test_score']))
+    print("Best test score: " + str(clf.best_score_))
 
     # Predict y_test drug response, and insert into prediction matrix
     print("Predicting y test...")
