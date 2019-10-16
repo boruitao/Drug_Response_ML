@@ -2,6 +2,13 @@ import numpy as np
 import pandas as pd
 import time
 import math
+import itertools
+
+# Ignore sklearn warnings
+def warn(*args, **kwargs):
+    pass
+import warnings
+warnings.warn = warn
 
 from sklearn.preprocessing import StandardScaler
 from sklearn_pandas import DataFrameMapper
@@ -81,6 +88,19 @@ def one_tailed_t_test(drug_responses_0, drug_responses_1):
 
     return t, p
 
+def grouper(n, iterable):
+    it = iter(iterable)
+    while True:
+       chunk = tuple(itertools.islice(it, n))
+       if not chunk:
+           return
+       yield chunk
+
+# Prints an array with n entries per line
+def print_array_n_entries_per_line(array, n):
+    for chunk in grouper(n, array): 
+        print(" ".join(str(x) for x in chunk))
+
 start_time = time.time()
 
 # Path to datasets
@@ -139,27 +159,37 @@ for drug in y_train:
     # x_val_single = x_val[x_val.index.isin(non_null_ids_)]
 
     # Create and fit model
-    print("Fitting " + model_name + " for drug: " + drug)
+    print("========================================================================================================")
+    print("\nFitting " + model_name + " for drug: " + drug)
     
-    #regr = MLPRegressor()
-    #parameters = {'random_state':[0], 'activation':['relu','logistic'], 'hidden_layer_sizes':[(25,), (100,)]}
-    regr = ElasticNet()
-    parameters = {'random_state':[0]}
+    regr = MLPRegressor()
+    parameters = {'random_state':[0], 'hidden_layer_sizes':[(50,25,), (25,5,)], 'alpha':[0.001, 0.01, 0.1, 1], 'max_iter':[200,500,1000]}
+    #regr = ElasticNet()
+    #parameters = {'random_state':[0]}
 
-    clf = GridSearchCV(regr, parameters, cv=5, verbose=10, return_train_score=True)
+    clf = GridSearchCV(regr, parameters, cv=5, return_train_score=True, scoring='neg_mean_squared_error')
     clf.fit(x_train_single.values, np.ravel(y_train_single.values))
     cv_results = clf.cv_results_ # dict of results
-    print("CV mean train scores: " + str(cv_results['mean_train_score']))
-    print("CV mean test scores: " + str(cv_results['mean_test_score']))
-    print("Best test score: " + str(clf.best_score_))
+
+    # Print GridSearchCV results
+    print("\n[Params]:")
+    print_array_n_entries_per_line(cv_results['params'], 1)
+    print("\n[Mean train scores]:")
+    mean_train_scores = cv_results['mean_train_score']
+    print_array_n_entries_per_line(mean_train_scores, 5)
+    print("\n[Mean test scores]:")
+    mean_test_scores = cv_results['mean_test_score']
+    print_array_n_entries_per_line(mean_test_scores, 5)
+    print("\n[Mean score ratios (test/train)]:")
+    print_array_n_entries_per_line(np.array(mean_test_scores) / np.array(mean_train_scores), 5)
 
     # Predict y_test drug response, and insert into prediction matrix
-    print("Predicting y test...")
+    print("\nPredicting TCGA drug response...")
     y_test_prediction_single =  clf.predict(x_test)
     y_test_prediction[drug] = y_test_prediction_single
     
     # Perform T-test
-    print("Performing t-test...")
+    print("\nPerforming t-test...")
     y_test_actual_single = y_test_binary[[drug]]
     drug_responses_0, drug_responses_1 = get_t_test_groups(y_test_actual_single.values, y_test_prediction_single)
     t, p = one_tailed_t_test(drug_responses_0, drug_responses_1)
@@ -169,11 +199,11 @@ for drug in y_train:
     print("P-value: " + str(p))
 
     current_time = time.time()
-    print("Current time: " + str(current_time - start_time) + "\n")
+    print("\nCurrent time: " + str(current_time - start_time) + "\n")
 
-# Store predictions and results in csv files
-results_file_name = 'results(' + model_name + ').csv'
-results.to_csv(results_path + results_file_name)
+# Store results in csv file
+# results_file_name = 'results(' + model_name + ').csv'
+# results.to_csv(results_path + results_file_name)
 
 # Print the total running time
 end_time = time.time()
