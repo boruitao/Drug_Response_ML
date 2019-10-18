@@ -162,10 +162,12 @@ for drug in y_train:
     print("========================================================================================================")
     print("\nFitting " + model_name + " for drug: " + drug)
     
-    regr = MLPRegressor()
-    parameters = {'random_state':[0], 'hidden_layer_sizes':[(50,25,), (25,5,)], 'alpha':[0.001, 0.01, 0.1, 1], 'max_iter':[200,500,1000]}
-    #regr = ElasticNet()
-    #parameters = {'random_state':[0]}
+    regr = MLPRegressor(random_state=0, hidden_layer_sizes=(10,), alpha=0.1, early_stopping=True)
+    parameters = {
+        'hidden_layer_sizes':[(150,), (250,), (500,), (1000,)]
+        # 'alpha':[0.0001, 0.001, 0.01, 0.1], 
+        # 'early_stopping':[False,True]
+    }
 
     clf = GridSearchCV(regr, parameters, cv=5, return_train_score=True, scoring='neg_mean_squared_error')
     clf.fit(x_train_single.values, np.ravel(y_train_single.values))
