@@ -113,9 +113,9 @@ results_path = '../Results/'
 model_name = 'MLPRegressor ' + str(time.time())
 
 # Load training and test set
-x_train = pd.read_csv(data_path + 'gdsc_expr_postCB(normalized).csv', index_col=0, header=None, low_memory=False).T.set_index('cell line id').apply(pd.to_numeric).iloc[:,0:200]
+x_train = pd.read_csv(data_path + 'gdsc_expr_postCB(normalized).csv', index_col=0, header=None, low_memory=False).T.set_index('cell line id').apply(pd.to_numeric)#.iloc[:,0:200]
 y_train = pd.read_csv(data_path + 'gdsc_dr_lnIC50.csv', index_col=0, header=None, low_memory=False).T.set_index('cell line id').apply(pd.to_numeric)
-x_test = pd.read_csv(data_path + 'tcga_expr_postCB(normalized).csv', index_col=0, header=None, low_memory=False).T.set_index('patient id').apply(pd.to_numeric).iloc[:,0:200]
+x_test = pd.read_csv(data_path + 'tcga_expr_postCB(normalized).csv', index_col=0, header=None, low_memory=False).T.set_index('patient id').apply(pd.to_numeric)#.iloc[:,0:200]
 y_test = pd.read_csv(data_path + 'tcga_dr.csv', index_col=0, header=None, low_memory=False).T.set_index('patient id')
 y_test_binary = category_to_binary(y_test)
 
@@ -123,16 +123,6 @@ y_test_binary = category_to_binary(y_test)
 columns = ['dabrafenib','erlotinib','gefitinib','imatinib','lapatinib','methotrexate','sunitinib','trametinib','veliparib','vinblastine']
 y_train = y_train.drop(columns, 1)
 y_test = y_test.drop(columns, 1)
-
-# Split into training and validation set
-# training_split = 0.8
-# n_samples_training = math.ceil(training_split * x_train.shape[0])
-# n_samples_val = x_train.shape[0] - n_samples_training
-
-# x_train_ = x_train.head(n_samples_training)
-# y_train_ = y_train.head(n_samples_training)
-# x_val = x_train.tail(n_samples_val)
-# y_val = y_train.tail(n_samples_val)
 
 # Matrix to store y_test predictions
 y_test_prediction = pd.DataFrame(index=y_test.index, columns=y_test.columns)
@@ -165,13 +155,13 @@ for drug in y_train:
     print("========================================================================================================")
     print("\nFitting " + model_name + " for drug: " + drug)
     
-    regr = MLPRegressor(random_state=0, alpha=0.1, early_stopping=True, hidden_layer_sizes=(1000,500,), activation='logistic', batch_size=350)
+    regr = MLPRegressor(random_state=0)
     parameters = {
-        # 'hidden_layer_sizes':[(1000,500,)]
+        'hidden_layer_sizes':[(1000,),(150,),(30,),(10,),(5,)]
         # 'alpha':[0.0001, 0.001, 0.01, 0.1], 
         # 'early_stopping':[False,True]
         # 'activation':['relu', 'logistic', 'tanh']
-        'beta_1':[0.8, 0.85, 0.9, 0.95]
+        # 'beta_2':[0.99, 0.999, 0.9999]
     }
 
     clf = GridSearchCV(regr, parameters, cv=5, return_train_score=True, scoring='neg_mean_squared_error')
