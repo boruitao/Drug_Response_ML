@@ -141,6 +141,9 @@ y_test_prediction = pd.DataFrame(index=y_test.index, columns=y_test.columns)
 results = y_test.describe().T.join(pd.DataFrame(index=y_test.columns, columns=['T-statistic', 'P-value']))
 results = results.drop(["count", "unique", "top", "freq"], axis=1)
 
+# Store average test scores across all drugs
+average_test_scores = []
+
 # Predict the response for each drug individually
 for drug in y_train:
 
@@ -168,7 +171,7 @@ for drug in y_train:
         # 'alpha':[0.0001, 0.001, 0.01, 0.1], 
         # 'early_stopping':[False,True]
         # 'activation':['relu', 'logistic', 'tanh']
-        'batch_size':[200, 350, 500]
+        'beta_1':[0.8, 0.85, 0.9, 0.95]
     }
 
     clf = GridSearchCV(regr, parameters, cv=5, return_train_score=True, scoring='neg_mean_squared_error')
@@ -186,6 +189,12 @@ for drug in y_train:
     print_array_n_entries_per_line(mean_test_scores, 5)
     print("\n[Mean score ratios (test/train)]:")
     print_array_n_entries_per_line(np.array(mean_test_scores) / np.array(mean_train_scores), 5)
+
+    # For average test scores across all drugs
+    if len(average_test_scores)==0:
+        average_test_scores = mean_test_scores.ravel()
+    else:
+        average_test_scores = average_test_scores + mean_test_scores.ravel()
 
     # Predict y_test drug response, and insert into prediction matrix
     print("\nPredicting TCGA drug response...")
@@ -209,7 +218,14 @@ for drug in y_train:
 # results_file_name = 'results(' + model_name + ').csv'
 # results.to_csv(results_path + results_file_name)
 
+print("========================================================================================================")
+
+# Print average test scores
+average_test_scores = average_test_scores / len(y_train.columns) # Divide by number of drugs to get average
+print("\nAverage test scores across all drugs: ")
+print_array_n_entries_per_line(average_test_scores, 5)
+
 # Print the total running time
 end_time = time.time()
 total_time = end_time - start_time
-print("Total running time was: " + str(total_time) + " seconds")
+print("\nTotal running time was: " + str(total_time) + " seconds")
