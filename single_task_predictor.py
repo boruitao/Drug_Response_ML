@@ -162,12 +162,13 @@ for drug in y_train:
     print("========================================================================================================")
     print("\nFitting " + model_name + " for drug: " + drug)
     
-    regr = MLPRegressor(random_state=0, alpha=0.1, early_stopping=True, hidden_layer_sizes=(1000,500,), activation='logistic')
+    regr = MLPRegressor(random_state=0, alpha=0.1, early_stopping=True, hidden_layer_sizes=(1000,500,), activation='logistic', batch_size=350)
     parameters = {
         # 'hidden_layer_sizes':[(1000,500,)]
         # 'alpha':[0.0001, 0.001, 0.01, 0.1], 
         # 'early_stopping':[False,True]
-        'activation':['relu', 'logistic', 'tanh']
+        # 'activation':['relu', 'logistic', 'tanh']
+        'batch_size':[200, 350, 500]
     }
 
     clf = GridSearchCV(regr, parameters, cv=5, return_train_score=True, scoring='neg_mean_squared_error')
