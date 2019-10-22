@@ -113,9 +113,9 @@ results_path = '../Results/'
 model_name = 'MLPRegressor ' + str(time.time())
 
 # Load training and test set
-x_train = pd.read_csv(data_path + 'gdsc_expr_postCB(normalized).csv', index_col=0, header=None, low_memory=False).T.set_index('cell line id').apply(pd.to_numeric)#.iloc[:,0:200]
+x_train = pd.read_csv(data_path + 'gdsc_expr_postCB(normalized).csv', index_col=0, header=None, low_memory=False).T.set_index('cell line id').apply(pd.to_numeric)#.iloc[:,0:100]
 y_train = pd.read_csv(data_path + 'gdsc_dr_lnIC50.csv', index_col=0, header=None, low_memory=False).T.set_index('cell line id').apply(pd.to_numeric)
-x_test = pd.read_csv(data_path + 'tcga_expr_postCB(normalized).csv', index_col=0, header=None, low_memory=False).T.set_index('patient id').apply(pd.to_numeric)#.iloc[:,0:200]
+x_test = pd.read_csv(data_path + 'tcga_expr_postCB(normalized).csv', index_col=0, header=None, low_memory=False).T.set_index('patient id').apply(pd.to_numeric)#.iloc[:,0:100]
 y_test = pd.read_csv(data_path + 'tcga_dr.csv', index_col=0, header=None, low_memory=False).T.set_index('patient id')
 y_test_binary = category_to_binary(y_test)
 
@@ -135,6 +135,7 @@ results = results.drop(["count", "unique", "top", "freq"], axis=1)
 average_test_scores = []
 
 # Predict the response for each drug individually
+drug_counter = 1
 for drug in y_train:
 
     # Keep only one drug column
@@ -155,13 +156,13 @@ for drug in y_train:
     print("========================================================================================================")
     print("\nFitting " + model_name + " for drug: " + drug)
     
-    regr = MLPRegressor(random_state=0)
+    regr = MLPRegressor(random_state=0, early_stopping=True, alpha=0.2)
     parameters = {
-        'hidden_layer_sizes':[(1000,),(150,),(30,),(10,),(5,)]
-        # 'alpha':[0.0001, 0.001, 0.01, 0.1], 
-        # 'early_stopping':[False,True]
-        # 'activation':['relu', 'logistic', 'tanh']
-        # 'beta_2':[0.99, 0.999, 0.9999]
+        # 'hidden_layer_sizes':[(10,), (10, 5,), (10,2,), (400, 200,), (400, 100,), 
+        #     (800, 400,), (800, 200,), (1200, 600,), (1200, 300,), (1600, 800,), 
+        #     (1600, 400,), (2000, 1000,), (2000, 500,), (2500, 1250,), (2500, 312,), 
+        #     (3000, 1500,), (3000, 750,), (3500, 1750,), (3500, 875,)]
+        'hidden_layer_sizes':[(10,)]
     }
 
     clf = GridSearchCV(regr, parameters, cv=5, return_train_score=True, scoring='neg_mean_squared_error')
@@ -186,6 +187,9 @@ for drug in y_train:
     else:
         average_test_scores = average_test_scores + mean_test_scores.ravel()
 
+    print("\n[Cumulative average of mean test scores]:")
+    print_array_n_entries_per_line(average_test_scores / drug_counter, 5)
+
     # Predict y_test drug response, and insert into prediction matrix
     print("\nPredicting TCGA drug response...")
     y_test_prediction_single =  clf.predict(x_test)
@@ -203,6 +207,8 @@ for drug in y_train:
 
     current_time = time.time()
     print("\nCurrent time: " + str(current_time - start_time) + "\n")
+
+    drug_counter += 1
 
 # Store results in csv file
 # results_file_name = 'results(' + model_name + ').csv'
