@@ -124,100 +124,68 @@ columns = ['dabrafenib','erlotinib','gefitinib','imatinib','lapatinib','methotre
 y_train = y_train.drop(columns, 1)
 y_test = y_test.drop(columns, 1)
 
-# Matrix to store y_test predictions
-y_test_prediction = pd.DataFrame(index=y_test.index, columns=y_test.columns)
+# Impute missing values in y_train
+imp = SimpleImputer(missing_values=np.nan, strategy='mean') # If a drug's DR is NaN, set it to the mean of the cell lines' DR for that drug
+y_train = pd.DataFrame(data=imp.fit_transform(y_train), index=y_train.index, columns=y_train.columns)
 
 # Matrix to store drug statistics, including t-statistic and p-value for each drug
 results = y_test.describe().T.join(pd.DataFrame(index=y_test.columns, columns=['T-statistic', 'P-value']))
 results = results.drop(["count", "unique", "top", "freq"], axis=1)
 
-# Store average test scores across all drugs
-average_test_scores = []
+# Create multitask lasso model
+print("Fitting " + model_name + "...")
 
-# Predict the response for each drug individually
-drug_counter = 1
-for drug in y_train:
+regr = MLPRegressor(random_state=0, early_stopping=True, alpha=0.2)
+parameters = {
+    'hidden_layer_sizes':[(10,)],
+}
 
-    # Keep only one drug column
-    y_train_single = y_train[[drug]]
+clf = GridSearchCV(regr, parameters, cv=5, return_train_score=True, scoring='neg_mean_squared_error')
+clf.fit(x_train, y_train)
+cv_results = clf.cv_results_ # dict of results
 
-    # Drop rows in y_train where drug response is NaN, as well as corresponding x_train rows
-    y_train_single = y_train_single.dropna()
-    non_null_ids = y_train_single.index
-    x_train_single = x_train[x_train.index.isin(non_null_ids)]
+# Print GridSearchCV results
+print("\n[Params]:")
+print_array_n_entries_per_line(cv_results['params'], 1)
+print("\n[Mean train scores]:")
+mean_train_scores = cv_results['mean_train_score']
+print_array_n_entries_per_line(mean_train_scores, 5)
+print("\n[Mean test scores]:")
+mean_test_scores = cv_results['mean_test_score']
+print_array_n_entries_per_line(mean_test_scores, 5)
+print("\n[Mean score ratios (test/train)]:")
+print_array_n_entries_per_line(np.array(mean_test_scores) / np.array(mean_train_scores), 5)
 
-    # Drop rows in y_val where drug response is NaN, as well as corresponding x_val rows
-    # y_val_single = y_val[[drug]]
-    # y_val_single = y_val_single.dropna()
-    # non_null_ids_ = y_val_single.index
-    # x_val_single = x_val[x_val.index.isin(non_null_ids_)]
+# ========================== DON'T DO THIS PART UNTIL HYPERPARAMETERS AR TUNED ==========================
+# Predict y_test
+# print("\nPredicting y test...")
+# y_test_prediction = pd.DataFrame(data=regr.predict(x_test), index=y_test.index, columns=y_test.columns)
 
-    # Create and fit model
-    print("========================================================================================================")
-    print("\nFitting " + model_name + " for drug: " + drug)
-    
-    regr = MLPRegressor(random_state=0, early_stopping=True, alpha=0.2)
-    parameters = {
-        'hidden_layer_sizes':[(10,)],
-    }
+# # For each drug, execute a t-test and store the results
+# for drug in y_test_binary.columns:
 
-    clf = GridSearchCV(regr, parameters, cv=5, return_train_score=True, verbose=10, scoring='neg_mean_squared_error')
-    clf.fit(x_train_single.values, np.ravel(y_train_single.values))
-    cv_results = clf.cv_results_ # dict of results
+#     # Get the drug response vector for a single drug
+#     y_test_prediction_single = y_test_prediction[drug] # assign column headers to y_test_prediction
+#     y_test_actual_single = y_test_binary[drug]
 
-    # Print GridSearchCV results
-    print("\n[Params]:")
-    print_array_n_entries_per_line(cv_results['params'], 1)
-    print("\n[Mean train scores]:")
-    mean_train_scores = cv_results['mean_train_score']
-    print_array_n_entries_per_line(mean_train_scores, 5)
-    print("\n[Mean test scores]:")
-    mean_test_scores = cv_results['mean_test_score']
-    print_array_n_entries_per_line(mean_test_scores, 5)
-    print("\n[Mean score ratios (test/train)]:")
-    print_array_n_entries_per_line(np.array(mean_test_scores) / np.array(mean_train_scores), 5)
+#     # Get sample groups for category 0 and category 1
+#     drug_responses_0, drug_responses_1 = get_t_test_groups(y_test_actual_single.values, y_test_prediction_single)
 
-    # For average test scores across all drugs
-    if len(average_test_scores)==0:
-        average_test_scores = mean_test_scores.ravel()
-    else:
-        average_test_scores = average_test_scores + mean_test_scores.ravel()
+#     # Perform T-test
+#     print("\nPerforming t-test for drug: " + str(drug))
+#     drug_responses_0, drug_responses_1 = get_t_test_groups(y_test_actual_single.values, y_test_prediction_single)
+#     t, p = one_tailed_t_test(drug_responses_0, drug_responses_1)
+#     results.loc[drug, 'T-statistic'] = t
+#     results.loc[drug, 'P-value'] = p
 
-    print("\n[Cumulative average of mean test scores]:")
-    print_array_n_entries_per_line(average_test_scores / drug_counter, 5)
-
-    # Predict y_test drug response, and insert into prediction matrix
-    print("\nPredicting TCGA drug response...")
-    y_test_prediction_single =  clf.predict(x_test)
-    y_test_prediction[drug] = y_test_prediction_single
-    
-    # Perform T-test
-    print("\nPerforming t-test...")
-    y_test_actual_single = y_test_binary[[drug]]
-    drug_responses_0, drug_responses_1 = get_t_test_groups(y_test_actual_single.values, y_test_prediction_single)
-    t, p = one_tailed_t_test(drug_responses_0, drug_responses_1)
-    results.loc[drug, 'T-statistic'] = t
-    results.loc[drug, 'P-value'] = p
-    print("T-statistic: " + str(t))
-    print("P-value: " + str(p))
-
-    current_time = time.time()
-    print("\nCurrent time: " + str(current_time - start_time) + "\n")
-
-    drug_counter += 1
-
-# Store results in csv file
+# # Store predictions and results in csv files
+# # prediction_file_name = 'tcga_dr_prediction(' + model_name + ').csv'
+# # y_test_prediction.to_csv(results_path + prediction_file_name)
 # results_file_name = 'results(' + model_name + ').csv'
 # results.to_csv(results_path + results_file_name)
-
-print("========================================================================================================")
-
-# Print average test scores
-average_test_scores = average_test_scores / len(y_train.columns) # Divide by number of drugs to get average
-print("\nAverage test scores across all drugs: ")
-print_array_n_entries_per_line(average_test_scores, 5)
 
 # Print the total running time
 end_time = time.time()
 total_time = end_time - start_time
-print("\nTotal running time was: " + str(total_time) + " seconds")
+print("Total running time was: " + str(total_time) + " seconds")
+
