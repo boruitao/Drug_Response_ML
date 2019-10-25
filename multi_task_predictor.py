@@ -115,32 +115,33 @@ model_name = 'MLPRegressor ' + str(time.time())
 # Load training and test set
 x_train = pd.read_csv(data_path + 'gdsc_expr_postCB(normalized).csv', index_col=0, header=None, low_memory=False).T.set_index('cell line id').apply(pd.to_numeric)#.iloc[:,0:100]
 y_train = pd.read_csv(data_path + 'gdsc_dr_lnIC50.csv', index_col=0, header=None, low_memory=False).T.set_index('cell line id').apply(pd.to_numeric)
-x_test = pd.read_csv(data_path + 'tcga_expr_postCB(normalized).csv', index_col=0, header=None, low_memory=False).T.set_index('patient id').apply(pd.to_numeric)#.iloc[:,0:100]
-y_test = pd.read_csv(data_path + 'tcga_dr.csv', index_col=0, header=None, low_memory=False).T.set_index('patient id')
-y_test_binary = category_to_binary(y_test)
+# x_test = pd.read_csv(data_path + 'tcga_expr_postCB(normalized).csv', index_col=0, header=None, low_memory=False).T.set_index('patient id').apply(pd.to_numeric)#.iloc[:,0:100]
+# y_test = pd.read_csv(data_path + 'tcga_dr.csv', index_col=0, header=None, low_memory=False).T.set_index('patient id')
+# y_test_binary = category_to_binary(y_test)
 
 # Drop the drugs with low sample sizes (to speed of running time)
 columns = ['dabrafenib','erlotinib','gefitinib','imatinib','lapatinib','methotrexate','sunitinib','trametinib','veliparib','vinblastine']
 y_train = y_train.drop(columns, 1)
-y_test = y_test.drop(columns, 1)
+# y_test = y_test.drop(columns, 1)
 
 # Impute missing values in y_train
 imp = SimpleImputer(missing_values=np.nan, strategy='mean') # If a drug's DR is NaN, set it to the mean of the cell lines' DR for that drug
 y_train = pd.DataFrame(data=imp.fit_transform(y_train), index=y_train.index, columns=y_train.columns)
 
 # Matrix to store drug statistics, including t-statistic and p-value for each drug
-results = y_test.describe().T.join(pd.DataFrame(index=y_test.columns, columns=['T-statistic', 'P-value']))
-results = results.drop(["count", "unique", "top", "freq"], axis=1)
+# results = y_test.describe().T.join(pd.DataFrame(index=y_test.columns, columns=['T-statistic', 'P-value']))
+# results = results.drop(["count", "unique", "top", "freq"], axis=1)
 
 # Create multitask lasso model
 print("Fitting " + model_name + "...")
 
-regr = MLPRegressor(random_state=0, early_stopping=True, alpha=0.2)
+regr = MLPRegressor(random_state=0, early_stopping=True)
 parameters = {
-    'hidden_layer_sizes':[(10,)],
+    'alpha':[0.5, 1, 1.5],
+    'hidden_layer_sizes':[(11000,5500,)],
 }
 
-clf = GridSearchCV(regr, parameters, cv=5, return_train_score=True, scoring='neg_mean_squared_error')
+clf = GridSearchCV(regr, parameters, cv=5, verbose=10, return_train_score=True, scoring='neg_mean_squared_error')
 clf.fit(x_train, y_train)
 cv_results = clf.cv_results_ # dict of results
 

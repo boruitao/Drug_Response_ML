@@ -161,7 +161,7 @@ for drug in y_train:
         'hidden_layer_sizes':[(10,)],
     }
 
-    clf = GridSearchCV(regr, parameters, cv=5, return_train_score=True, verbose=10, scoring='neg_mean_squared_error')
+    clf = GridSearchCV(regr, parameters, cv=5, return_train_score=True, scoring='neg_mean_squared_error')
     clf.fit(x_train_single.values, np.ravel(y_train_single.values))
     cv_results = clf.cv_results_ # dict of results
 
