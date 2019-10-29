@@ -132,7 +132,7 @@ y_train = pd.DataFrame(data=imp.fit_transform(y_train), index=y_train.index, col
 # results = y_test.describe().T.join(pd.DataFrame(index=y_test.columns, columns=['T-statistic', 'P-value']))
 # results = results.drop(["count", "unique", "top", "freq"], axis=1)
 
-# Create multitask lasso model
+# Fit
 print("Fitting " + model_name + "...")
 
 regr = MLPRegressor(random_state=0, early_stopping=True)
