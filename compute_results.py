@@ -31,7 +31,7 @@ while line:
             # Compute average train/test MSE for current batch
             avg_train = round(sum_train / 5, 4)
             avg_test = round(sum_test / 5, 4)
-            print(str(batch_num) + '. ' + line[0:80])
+            print(str(batch_num) + '. ' + line[0:125])
             print('[' + str(avg_train) + ', ' + str(avg_test) + ']\n')
 
         line = f_read.readline()

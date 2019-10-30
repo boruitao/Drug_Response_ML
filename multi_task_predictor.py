@@ -113,32 +113,40 @@ results_path = '../Results/'
 model_name = 'MLPRegressor ' + str(time.time())
 
 # Load training and test set
-x_train = pd.read_csv(data_path + 'gdsc_expr_postCB(normalized).csv', index_col=0, header=None, low_memory=False).T.set_index('cell line id').apply(pd.to_numeric)#.iloc[:,0:100]
+x_train = pd.read_csv(data_path + 'gdsc_expr_postCB(normalized).csv', index_col=0, header=None, low_memory=False).T.set_index('cell line id').apply(pd.to_numeric)#.iloc[:,0:1]
 y_train = pd.read_csv(data_path + 'gdsc_dr_lnIC50.csv', index_col=0, header=None, low_memory=False).T.set_index('cell line id').apply(pd.to_numeric)
-# x_test = pd.read_csv(data_path + 'tcga_expr_postCB(normalized).csv', index_col=0, header=None, low_memory=False).T.set_index('patient id').apply(pd.to_numeric)#.iloc[:,0:100]
-# y_test = pd.read_csv(data_path + 'tcga_dr.csv', index_col=0, header=None, low_memory=False).T.set_index('patient id')
-# y_test_binary = category_to_binary(y_test)
+x_test = pd.read_csv(data_path + 'tcga_expr_postCB(normalized).csv', index_col=0, header=None, low_memory=False).T.set_index('patient id').apply(pd.to_numeric)#.iloc[:,0:1]
+y_test = pd.read_csv(data_path + 'tcga_dr.csv', index_col=0, header=None, low_memory=False).T.set_index('patient id')
+y_test_binary = category_to_binary(y_test)
 
 # Drop the drugs with low sample sizes (to speed of running time)
 columns = ['dabrafenib','erlotinib','gefitinib','imatinib','lapatinib','methotrexate','sunitinib','trametinib','veliparib','vinblastine']
 y_train = y_train.drop(columns, 1)
-# y_test = y_test.drop(columns, 1)
+y_test = y_test.drop(columns, 1)
+y_test_binary = y_test_binary.drop(columns, 1)
 
 # Impute missing values in y_train
 imp = SimpleImputer(missing_values=np.nan, strategy='mean') # If a drug's DR is NaN, set it to the mean of the cell lines' DR for that drug
 y_train = pd.DataFrame(data=imp.fit_transform(y_train), index=y_train.index, columns=y_train.columns)
 
 # Matrix to store drug statistics, including t-statistic and p-value for each drug
-# results = y_test.describe().T.join(pd.DataFrame(index=y_test.columns, columns=['T-statistic', 'P-value']))
-# results = results.drop(["count", "unique", "top", "freq"], axis=1)
+results = y_test.describe().T.join(pd.DataFrame(index=y_test.columns, columns=['T-statistic', 'P-value']))
+results = results.drop(["count", "unique", "top", "freq"], axis=1)
 
 # Fit
 print("Fitting " + model_name + "...")
 
-regr = MLPRegressor(random_state=0, early_stopping=True)
+regr = MLPRegressor(
+    random_state = 0, 
+    early_stopping = True, 
+    activation = 'logistic',
+    hidden_layer_sizes = (1650, 1238,),
+    alpha = 1.5,
+    learning_rate_init = 0.0001,
+    epsilon = 0.01
+)
+
 parameters = {
-    'alpha':[0.5, 1, 1.5],
-    'hidden_layer_sizes':[(11000,5500,)],
 }
 
 clf = GridSearchCV(regr, parameters, cv=5, verbose=10, return_train_score=True, scoring='neg_mean_squared_error')
@@ -158,32 +166,32 @@ print("\n[Mean score ratios (test/train)]:")
 print_array_n_entries_per_line(np.array(mean_test_scores) / np.array(mean_train_scores), 5)
 
 # ========================== DON'T DO THIS PART UNTIL HYPERPARAMETERS AR TUNED ==========================
-# Predict y_test
-# print("\nPredicting y test...")
-# y_test_prediction = pd.DataFrame(data=regr.predict(x_test), index=y_test.index, columns=y_test.columns)
+#Predict y_test
+print("\nPredicting y test...")
+y_test_prediction = pd.DataFrame(data=clf.predict(x_test), index=y_test.index, columns=y_test.columns)
 
-# # For each drug, execute a t-test and store the results
-# for drug in y_test_binary.columns:
+# For each drug, execute a t-test and store the results
+for drug in y_test_binary.columns:
 
-#     # Get the drug response vector for a single drug
-#     y_test_prediction_single = y_test_prediction[drug] # assign column headers to y_test_prediction
-#     y_test_actual_single = y_test_binary[drug]
+    # Get the drug response vector for a single drug
+    y_test_prediction_single = y_test_prediction[drug] # assign column headers to y_test_prediction
+    y_test_actual_single = y_test_binary[drug]
 
-#     # Get sample groups for category 0 and category 1
-#     drug_responses_0, drug_responses_1 = get_t_test_groups(y_test_actual_single.values, y_test_prediction_single)
+    # Get sample groups for category 0 and category 1
+    drug_responses_0, drug_responses_1 = get_t_test_groups(y_test_actual_single.values, y_test_prediction_single)
 
-#     # Perform T-test
-#     print("\nPerforming t-test for drug: " + str(drug))
-#     drug_responses_0, drug_responses_1 = get_t_test_groups(y_test_actual_single.values, y_test_prediction_single)
-#     t, p = one_tailed_t_test(drug_responses_0, drug_responses_1)
-#     results.loc[drug, 'T-statistic'] = t
-#     results.loc[drug, 'P-value'] = p
+    # Perform T-test
+    print("\nPerforming t-test for drug: " + str(drug))
+    drug_responses_0, drug_responses_1 = get_t_test_groups(y_test_actual_single.values, y_test_prediction_single)
+    t, p = one_tailed_t_test(drug_responses_0, drug_responses_1)
+    results.loc[drug, 'T-statistic'] = t
+    results.loc[drug, 'P-value'] = p
 
-# # Store predictions and results in csv files
-# # prediction_file_name = 'tcga_dr_prediction(' + model_name + ').csv'
-# # y_test_prediction.to_csv(results_path + prediction_file_name)
-# results_file_name = 'results(' + model_name + ').csv'
-# results.to_csv(results_path + results_file_name)
+# Store predictions and results in csv files
+# prediction_file_name = 'tcga_dr_prediction(' + model_name + ').csv'
+# y_test_prediction.to_csv(results_path + prediction_file_name)
+results_file_name = 'results(' + model_name + ').csv'
+results.to_csv(results_path + results_file_name)
 
 # Print the total running time
 end_time = time.time()
