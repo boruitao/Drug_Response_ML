@@ -3,6 +3,7 @@ import pandas as pd
 import time
 import math
 import itertools
+import matplotlib.pyplot as plt
 
 # Ignore sklearn warnings
 def warn(*args, **kwargs):
@@ -12,11 +13,9 @@ warnings.warn = warn
 
 from sklearn.preprocessing import StandardScaler
 from sklearn_pandas import DataFrameMapper
-from sklearn.neural_network import MLPRegressor
-from sklearn.linear_model import ElasticNet
+from sklearn.linear_model import ElasticNetCV
+from sklearn.linear_model import LassoCV
 from sklearn.datasets import make_regression
-from sklearn.impute import SimpleImputer
-from sklearn.model_selection import GridSearchCV
 from scipy import stats
 
 # Takes two numpy arrays as input: y_actual, y_predicted
@@ -110,7 +109,7 @@ data_path = '../Data/'
 results_path = '../Results/'
 
 # Name of model being used
-model_name = 'MLPRegressor ' + str(time.time())
+model_name = 'LassoCV'
 
 # Load training and test set
 x_train = pd.read_csv(data_path + 'gdsc_expr_postCB(normalized).csv', index_col=0, header=None, low_memory=False).T.set_index('cell line id').apply(pd.to_numeric).iloc[:,0:100]
@@ -131,9 +130,6 @@ y_test_prediction = pd.DataFrame(index=y_test.index, columns=y_test.columns)
 results = y_test.describe().T.join(pd.DataFrame(index=y_test.columns, columns=['T-statistic', 'P-value']))
 results = results.drop(["count", "unique", "top", "freq"], axis=1)
 
-# Store average test scores across all drugs
-average_test_scores = []
-
 # Predict the response for each drug individually
 drug_counter = 1
 for drug in y_train:
@@ -146,49 +142,44 @@ for drug in y_train:
     non_null_ids = y_train_single.index
     x_train_single = x_train[x_train.index.isin(non_null_ids)]
 
-    # Drop rows in y_val where drug response is NaN, as well as corresponding x_val rows
-    # y_val_single = y_val[[drug]]
-    # y_val_single = y_val_single.dropna()
-    # non_null_ids_ = y_val_single.index
-    # x_val_single = x_val[x_val.index.isin(non_null_ids_)]
-
     # Create and fit model
     print("========================================================================================================")
     print("\nFitting " + model_name + " for drug: " + drug)
     
-    regr = MLPRegressor(random_state=0, early_stopping=True, alpha=0.2)
-    parameters = {
-        'hidden_layer_sizes':[(10,)],
-    }
+    regr = LassoCV(cv=5, random_state=0)
+    regr.fit(x_train_single.values, np.ravel(y_train_single.values))
 
-    clf = GridSearchCV(regr, parameters, cv=5, return_train_score=True, scoring='neg_mean_squared_error')
-    clf.fit(x_train_single.values, np.ravel(y_train_single.values))
-    cv_results = clf.cv_results_ # dict of results
+    # Display results
+    EPSILON = 1e-4
+    m_log_alphas = -np.log10(regr.alphas_ + EPSILON)
 
-    # Print GridSearchCV results
-    print("\n[Params]:")
-    print_array_n_entries_per_line(cv_results['params'], 1)
-    print("\n[Mean train scores]:")
-    mean_train_scores = cv_results['mean_train_score']
-    print_array_n_entries_per_line(mean_train_scores, 5)
-    print("\n[Mean test scores]:")
-    mean_test_scores = cv_results['mean_test_score']
-    print_array_n_entries_per_line(mean_test_scores, 5)
-    print("\n[Mean score ratios (test/train)]:")
-    print_array_n_entries_per_line(np.array(mean_test_scores) / np.array(mean_train_scores), 5)
+    plt.figure()
+    ymin, ymax = 0, 8
+    plt.plot(m_log_alphas, regr.mse_path_.mean(axis=-1), 'k',
+            label='Mean MSE across the folds', linewidth=2)
+    plt.axvline(-np.log10(regr.alpha_ + EPSILON), linestyle='--', color='k',
+                label='alpha chosen by CV') # Vertical line
+    plt.legend()
 
-    # For average test scores across all drugs
-    if len(average_test_scores)==0:
-        average_test_scores = mean_test_scores.ravel()
-    else:
-        average_test_scores = average_test_scores + mean_test_scores.ravel()
+    mse_path = np.array(regr.mse_path_).mean(axis=1) # Get MSE path with mean CV scores
+    print("\n[MSE path]:")
+    print(mse_path)
+    print("\n[Lowest MSE]:")
+    test_MSE = round(mse_path.min(), 5)
+    print(test_MSE)
 
-    print("\n[Cumulative average of mean test scores]:")
-    print_array_n_entries_per_line(average_test_scores / drug_counter, 5)
+    title = str(drug) + ' - ' + model_name + ' coordinate descent - MSE = ' + str(test_MSE)
+    plt.xlabel('-log(alpha)')
+    plt.ylabel('Mean squared error')
+    plt.title(title)
+    plt.axis('tight')
+    plt.ylim(ymin, ymax)
+    #plt.show()
+    plt.savefig(results_path + title + '.png', dpi=1200, format='png', bbox_inches='tight')
 
     # Predict y_test drug response, and insert into prediction matrix
     print("\nPredicting TCGA drug response...")
-    y_test_prediction_single =  clf.predict(x_test)
+    y_test_prediction_single =  regr.predict(x_test)
     y_test_prediction[drug] = y_test_prediction_single
     
     # Perform T-test
@@ -207,15 +198,10 @@ for drug in y_train:
     drug_counter += 1
 
 # Store results in csv file
-# results_file_name = 'results(' + model_name + ').csv'
-# results.to_csv(results_path + results_file_name)
+results_file_name = 'results(' + model_name + ' ' + str(time.time()) + ').csv'
+results.to_csv(results_path + results_file_name)
 
 print("========================================================================================================")
-
-# Print average test scores
-average_test_scores = average_test_scores / len(y_train.columns) # Divide by number of drugs to get average
-print("\nAverage test scores across all drugs: ")
-print_array_n_entries_per_line(average_test_scores, 5)
 
 # Print the total running time
 end_time = time.time()
