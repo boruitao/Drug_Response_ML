@@ -29,18 +29,6 @@ def mean_absolute_percentage_error(y_pred, y_true, sample_weights=None):
                 sample_weights, (np.abs((y_true - y_pred) / y_true))
         ))
 
-def absolute_correlation(r_ml):
-        return abs(r_ml)
-
-def squared_correlation(r_ml):
-    return r_ml**2
-
-def thresholded_correlation(r_ml):
-    if r_ml > correlation_threshold:
-        return 1
-    else:
-        return 0
-
 def GFLasso_loss(y_pred, y_true, sample_weights=None):
     y_true = np.array(y_true)
     y_pred = np.array(y_pred)
@@ -84,21 +72,37 @@ class GFLasso:
 
     gamma: used in fusion penalty
 
+    correlation_matrix: matrix of task-task similarity
     correlation_function: the correlation function used for the fusion penalty
     correlation_threshold: the threshold used if correlation_function='threshold'
     """
     def __init__(self, 
                  X=None, Y=None, beta_init=None,
                  lambda_=0, gamma=0,
-                 correlation_function=absolute_correlation, correlation_threshold=0.5):
+                 correlation_matrix=None, correlation_function='absolute', correlation_threshold=0.5):
         self.lambda_ = lambda_
+        self.gamma = gamma
         self.beta = None
         self.beta_init = beta_init
         
         self.X = X
         self.Y = Y
 
+        self.correlation_matrix = correlation_matrix
         self.correlation_function = correlation_function
+        self.correlation_threshold = correlation_threshold
+    
+    def absolute_correlation(self, r_ml):
+        return abs(r_ml)
+
+    def squared_correlation(self, r_ml):
+        return r_ml**2
+
+    def thresholded_correlation(self, r_ml):
+        if r_ml > correlation_threshold:
+            return 1
+        else:
+            return 0
     
     def predict(self, X):
         prediction = np.matmul(X, self.beta)
@@ -132,13 +136,30 @@ class GFLasso:
 
     # TO-DO
     def fusion_penalty(self):
-        error = 0
+        self.beta = np.reshape(self.beta, (-1, np.size(self.beta_init, 1))) # Make beta 2D to allow calculations
+        
+        penalty = 0
 
-        # For each entry (r_ml) in drug-drug similarity matrix
-            # For each entry r(_jm) in drug-drug similarity matrix
-                # Take entry beta_jm? --> Not sure what beta_jm refers to sice beta is (genes x drugs), not (drugs x drugs)
-
-        return(error)
+        for m in range(0, np.size(self.correlation_matrix, 0)): # Iterate through rows
+            for l in range(m, np.size(self.correlation_matrix, 1)): # Iterate through cols, skipping "edges" that already occured
+                r_ml = correlation_matrix[m][l]
+                abs_sum = 0
+                for j in range(0, np.size(self.beta, 0)): # Iterate through rows
+                    abs_sum += abs(self.beta[j][m] - np.sign(r_ml) * self.beta[j][l])
+                if self.correlation_function == 'absolute':
+                    f_r_ml = self.absolute_correlation(r_ml)
+                elif self.correlation_function == 'squared':
+                    f_r_ml = self.squared_correlation(r_ml)
+                elif self.correlation_function == 'thresholded':
+                    f_r_ml = self.thresholded_correlation(r_ml)
+                else:
+                    raise ValueError("Unrecognized correlation function. Please correct to \"absolute\", \"squared\", or \"thresholded\"")
+                penalty += f_r_ml * abs_sum
+        
+        # Multiply penalty by gamma
+        penalty = self.gamma * penalty
+        
+        return(penalty)
     
     def l1_penalty(self):
         return np.sum(self.lambda_*np.absolute(np.array(self.beta)))
@@ -186,7 +207,8 @@ X = scaler.transform(X_raw)
 X = np.abs(np.concatenate((np.ones((X.shape[0],1)), X), axis=1)) # (20 x 10)
 
 # Define my "true" beta coefficients
-beta = np.array([[2,6,7,3,5], # (20 x 5)
+beta = np.array([
+    [2,6,7,3,5], # (20 x 5)
     [2,6,7,3,5],
     [2,6,7,3,5],
     [2,6,7,3,5],
@@ -202,10 +224,19 @@ beta = np.array([[2,6,7,3,5], # (20 x 5)
 Y_true = np.matmul(X,beta)
 Y = Y_true
 
+# Define correlation matrix (5 x 5)
+correlation_matrix = np.array(
+    [[1,0.2,0.1,0.7,0.9],
+    [0.2,1,0.5,0.2,0.2],
+    [0.1,0.5,1,0.1,0],
+    [0.7,0.2,0.1,1,0.8],
+    [0.9,0.2,0,0.8,1]
+])
+
 # ===================== OPTIMIZE BETA (WEIGHTS) ========================
 
 model = GFLasso(
-    X=X, Y=Y, lambda_=1, gamma=0, correlation_function = absolute_correlation
+    X=X, Y=Y, lambda_=1, gamma=1, correlation_matrix = correlation_matrix, correlation_function = 'absolute'
 )
 model.fit()
 print("MODEL BETA:")
