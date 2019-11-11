@@ -105,23 +105,28 @@ class GFLasso:
         return(prediction)
     
     def loss(self, beta):
-        self.beta = beta
-        return(self.rss() + \
-               self.l1_penalty(beta) + \
+        self.beta = np.reshape(beta, (-1, np.size(self.beta_init, 1)))
+        loss = (self.rss() + \
+               self.l1_penalty() + \
                self.fusion_penalty()
                )
+        self.beta = np.reshape(self.beta, (1, -1))
+        return loss
 
     # TO-DO
     def rss(self):
 
         rss = 0
         # For each drug
+        for k in range(np.size(self.Y, 1)):
             # Compute (y_k - XB_k)
+            y_k = self.Y[:,k]
+            beta_k = self.beta[:,k]
+            y_delta = y_k - np.matmul(self.X, beta_k)
             # Take the transpose
             # Multiply the transpose with (y_k - XB_k)
-            # rss += result
-        # error = total_rss
-
+            rss_k = np.matmul(y_delta, y_delta.T)
+            rss += rss_k
         return(rss)
 
     # TO-DO
@@ -134,10 +139,10 @@ class GFLasso:
 
         return(error)
     
-    def l1_penalty(self, beta):
-        return sum(self.lambda_*np.absolute(np.array(beta)))
+    def l1_penalty(self):
+        return sum(self.lambda_*np.absolute(np.array(self.beta)))
     
-    def fit(self, maxiter=250):        
+    def fit(self, maxiter=250):     
         # Initialize beta estimates (you may need to normalize
         # your data and choose smarter initialization values
         # depending on the shape of your loss function)
@@ -150,10 +155,10 @@ class GFLasso:
             
         if self.beta!=None and all(self.beta_init == self.beta):
             print("Model already fit once; continuing fit with more itrations.")
-            
+        
         res = minimize(self.loss, self.beta_init,
                        method='BFGS', options={'maxiter': 500})
-        self.beta = res.x
+        self.beta = np.reshape(res.x, (-1, np.size(self.beta_init, 1)))
         self.beta_init = self.beta
 
 loss_function = mean_absolute_percentage_error # Set loss function to MAPE
@@ -203,5 +208,5 @@ model = GFLasso(
     X=X, Y=Y, lambda_=1, gamma=0, correlation_function = absolute_correlation
 )
 model.fit()
-print("MODEL BETA:")
-print(model.beta)
+#print("MODEL BETA:")
+#print(model.beta)
