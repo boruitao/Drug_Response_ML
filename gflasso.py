@@ -29,6 +29,18 @@ def mean_absolute_percentage_error(y_pred, y_true, sample_weights=None):
                 sample_weights, (np.abs((y_true - y_pred) / y_true))
         ))
 
+def absolute_correlation(r_ml):
+        return abs(r_ml)
+
+def squared_correlation(r_ml):
+    return r_ml**2
+
+def thresholded_correlation(r_ml):
+    if r_ml > correlation_threshold:
+        return 1
+    else:
+        return 0
+
 def GFLasso_loss(y_pred, y_true, sample_weights=None):
     y_true = np.array(y_true)
     y_pred = np.array(y_pred)
@@ -67,40 +79,63 @@ class GFLasso:
     beta_init: (p x k) matrix of weights
         p: number of features
         k: number of tasks
+
+    lambda: used in l1 penalty
+
+    gamma: used in fusion penalty
+
+    correlation_function: the correlation function used for the fusion penalty
+    correlation_threshold: the threshold used if correlation_function='threshold'
     """
     def __init__(self, 
-                 X=None, Y=None, beta_init=None, 
-
-                 lambda_=0, gamma=0):
+                 X=None, Y=None, beta_init=None,
+                 lambda_=0, gamma=0,
+                 correlation_function=absolute_correlation, correlation_threshold=0.5):
         self.lambda_ = lambda_
         self.beta = None
         self.beta_init = beta_init
         
         self.X = X
         self.Y = Y
+
+        self.correlation_function = correlation_function
     
     def predict(self, X):
         prediction = np.matmul(X, self.beta)
         return(prediction)
-
-    def rss(self):
-        # TO-DO: fill in RSS error formula
-        error = 0
-        return(error)
-
-    def fusion_penalty(self):
-        # TO-DO: fill in fusion penalty formula
-        error = 0
-        return(error)
     
-    def l1_regularized_loss(self, beta):
+    def loss(self, beta):
         self.beta = beta
-        #print("CALL TO L1")
-        #print(sum(self.lambda_*np.absolute(np.array(self.beta))))
         return(self.rss() + \
-               sum(self.lambda_*np.absolute(np.array(self.beta))) + \
+               self.l1_penalty(beta) + \
                self.fusion_penalty()
                )
+
+    # TO-DO
+    def rss(self):
+
+        rss = 0
+        # For each drug
+            # Compute (y_k - XB_k)
+            # Take the transpose
+            # Multiply the transpose with (y_k - XB_k)
+            # rss += result
+        # error = total_rss
+
+        return(rss)
+
+    # TO-DO
+    def fusion_penalty(self):
+        error = 0
+
+        # For each entry (r_ml) in drug-drug similarity matrix
+            # For each entry r(_jm) in drug-drug similarity matrix
+                # Take entry beta_jm? --> Not sure what beta_jm refers to sice beta is (genes x drugs), not (drugs x drugs)
+
+        return(error)
+    
+    def l1_penalty(self, beta):
+        return sum(self.lambda_*np.absolute(np.array(beta)))
     
     def fit(self, maxiter=250):        
         # Initialize beta estimates (you may need to normalize
@@ -116,7 +151,7 @@ class GFLasso:
         if self.beta!=None and all(self.beta_init == self.beta):
             print("Model already fit once; continuing fit with more itrations.")
             
-        res = minimize(self.l1_regularized_loss, self.beta_init,
+        res = minimize(self.loss, self.beta_init,
                        method='BFGS', options={'maxiter': 500})
         self.beta = res.x
         self.beta_init = self.beta
@@ -157,7 +192,6 @@ beta = np.array([[2,6,7,3,5], # (20 x 5)
     [2,6,7,3,5],
     [2,6,7,3,5]
 ])
-print(beta.shape)
 
 # Y = Xb
 Y_true = np.matmul(X,beta)
@@ -166,8 +200,8 @@ Y = Y_true
 # ===================== OPTIMIZE BETA (WEIGHTS) ========================
 
 model = GFLasso(
-    X=X, Y=Y, lambda_=0, gamma=0
+    X=X, Y=Y, lambda_=1, gamma=0, correlation_function = absolute_correlation
 )
 model.fit()
 print("MODEL BETA:")
-print(model.beta.shape)
+print(model.beta)
