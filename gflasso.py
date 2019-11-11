@@ -105,16 +105,16 @@ class GFLasso:
         return(prediction)
     
     def loss(self, beta):
-        self.beta = np.reshape(beta, (-1, np.size(self.beta_init, 1)))
+        self.beta = beta
         loss = (self.rss() + \
                self.l1_penalty() + \
                self.fusion_penalty()
                )
-        self.beta = np.reshape(self.beta, (1, -1))
         return loss
 
     # TO-DO
     def rss(self):
+        self.beta = np.reshape(self.beta, (-1, np.size(self.beta_init, 1))) # Make beta 2D to allow calculations
 
         rss = 0
         # For each drug
@@ -127,6 +127,8 @@ class GFLasso:
             # Multiply the transpose with (y_k - XB_k)
             rss_k = np.matmul(y_delta, y_delta.T)
             rss += rss_k
+
+        self.beta = np.reshape(self.beta, (1, -1)) # Make beta 1D again to allow minimize function to work
         return(rss)
 
     # TO-DO
@@ -140,7 +142,7 @@ class GFLasso:
         return(error)
     
     def l1_penalty(self):
-        return sum(self.lambda_*np.absolute(np.array(self.beta)))
+        return np.sum(self.lambda_*np.absolute(np.array(self.beta)))
     
     def fit(self, maxiter=250):     
         # Initialize beta estimates (you may need to normalize
@@ -155,10 +157,9 @@ class GFLasso:
             
         if self.beta!=None and all(self.beta_init == self.beta):
             print("Model already fit once; continuing fit with more itrations.")
-        
         res = minimize(self.loss, self.beta_init,
                        method='BFGS', options={'maxiter': 500})
-        self.beta = np.reshape(res.x, (-1, np.size(self.beta_init, 1)))
+        self.beta = res.x
         self.beta_init = self.beta
 
 loss_function = mean_absolute_percentage_error # Set loss function to MAPE
@@ -208,5 +209,5 @@ model = GFLasso(
     X=X, Y=Y, lambda_=1, gamma=0, correlation_function = absolute_correlation
 )
 model.fit()
-#print("MODEL BETA:")
-#print(model.beta)
+print("MODEL BETA:")
+print(np.reshape(model.beta, (-1, np.size(beta, 1))))
