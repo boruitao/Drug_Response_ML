@@ -112,7 +112,6 @@ class GFLasso:
                )
         return loss
 
-    # TO-DO
     def rss(self):
         self.beta = np.reshape(self.beta, (-1, np.size(self.beta_init, 1))) # Make beta 2D to allow calculations
 
