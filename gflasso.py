@@ -1,9 +1,12 @@
 import numpy as np
 import pandas as pd
+import time
 from matplotlib import pyplot as plt
 from sklearn.preprocessing import StandardScaler
 from scipy.optimize import minimize
 from sklearn.impute import SimpleImputer
+
+start_time = time.time()
 
 # Example loss function used in article (MAPE)
 # [TO-DO]: replace this function by the gflasso loss function
@@ -92,6 +95,8 @@ class GFLasso:
         self.correlation_matrix = correlation_matrix
         self.correlation_function = correlation_function
         self.correlation_threshold = correlation_threshold
+
+        self.iteration = 1
     
     def absolute_correlation(self, r_ml):
         return abs(r_ml)
@@ -110,6 +115,10 @@ class GFLasso:
         return(prediction)
     
     def loss(self, beta):
+        print("Iteration: " + str(self.iteration))
+        print("Current time: " + str(time.time() - start_time) + " seconds")
+        self.iteration += 1
+
         self.beta = beta
         loss = (self.rss() + \
                self.l1_penalty() + \
@@ -246,10 +255,11 @@ def objective_function(beta, X, Y):
 
 #  ===================== TESTING ON REAL DATA ========================
 print("Retrieving data ....")
-data_path = '../Real_data/'
+data_path = '../Data/'
+results_path = '../Results/'
 drug_cids = pd.read_csv(data_path + 'drug_drug_similarity.csv',index_col=0, header=None, low_memory=False).T.set_index('drug').apply(pd.to_numeric)
-train_x = pd.read_csv(data_path + 'gdsc_expr_postCB(normalized).csv', index_col=0, header=None, low_memory=False).T.set_index('cell line id').apply(pd.to_numeric)#.iloc[:,0:100]
-train_y = pd.read_csv(data_path + 'gdsc_dr_lnIC50.csv', index_col=0, header=None, low_memory=False).T.set_index('cell line id').apply(pd.to_numeric)
+train_x = pd.read_csv(data_path + 'gdsc_expr_postCB(normalized).csv', index_col=0, header=None, low_memory=False).T.set_index('cell line id').apply(pd.to_numeric)#.iloc[0:10:,0:5]
+train_y = pd.read_csv(data_path + 'gdsc_dr_lnIC50.csv', index_col=0, header=None, low_memory=False).T.set_index('cell line id').apply(pd.to_numeric)#.iloc[0:10:,]
 
 #select 8 drugs which only exists in the drug-drug similarity matrix
 train_y = train_y.filter(drug_cids)
@@ -269,3 +279,8 @@ model = GFLasso(
 print("Fitting the multi-task model...")
 model.fit()
 print("Finished")
+
+print("Model beta after fitting: ")
+beta = np.reshape(model.beta, (-1, np.size(Y, 1)))
+print(beta)
+np.save(results_path + 'beta.npy', beta) # Save the trained weights
