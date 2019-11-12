@@ -3,6 +3,7 @@ import pandas as pd
 from matplotlib import pyplot as plt
 from sklearn.preprocessing import StandardScaler
 from scipy.optimize import minimize
+from sklearn.impute import SimpleImputer
 
 # Example loss function used in article (MAPE)
 # [TO-DO]: replace this function by the gflasso loss function
@@ -188,55 +189,83 @@ def objective_function(beta, X, Y):
     error = loss_function(np.matmul(X,beta), Y)
     return(error)
 
-# ===================== CREATE DATASETS ========================
+# # ===================== CREATE DATASETS ========================
 
-# p = 10 features
-# k = 5 tasks
-# n = 20 samples
+# # p = 10 features
+# # k = 5 tasks
+# # n = 20 samples
 
-# Generate predictors
-X_raw = np.random.random(20*9)
-X_raw = np.reshape(X_raw, (20, 9))
+# # Generate predictors
+# X_raw = np.random.random(20*9)
+# X_raw = np.reshape(X_raw, (20, 9))
 
-# Standardize the predictors
-scaler = StandardScaler().fit(X_raw)
-X = scaler.transform(X_raw)
+# # Standardize the predictors
+# scaler = StandardScaler().fit(X_raw)
+# X = scaler.transform(X_raw)
 
-# Add an intercept column to the model.
-X = np.abs(np.concatenate((np.ones((X.shape[0],1)), X), axis=1)) # (20 x 10)
+# # Add an intercept column to the model.
+# X = np.abs(np.concatenate((np.ones((X.shape[0],1)), X), axis=1)) # (20 x 10)
 
-# Define my "true" beta coefficients
-beta = np.array([
-    [2,6,7,3,5], # (20 x 5)
-    [2,6,7,3,5],
-    [2,6,7,3,5],
-    [2,6,7,3,5],
-    [2,6,7,3,5],
-    [2,6,7,3,5],
-    [2,6,7,3,5],
-    [2,6,7,3,5],
-    [2,6,7,3,5],
-    [2,6,7,3,5]
-])
+# # Define my "true" beta coefficients
+# beta = np.array([
+#     [2,6,7,3,5], # (20 x 5)
+#     [2,6,7,3,5],
+#     [2,6,7,3,5],
+#     [2,6,7,3,5],
+#     [2,6,7,3,5],
+#     [2,6,7,3,5],
+#     [2,6,7,3,5],
+#     [2,6,7,3,5],
+#     [2,6,7,3,5],
+#     [2,6,7,3,5]
+# ])
 
-# Y = Xb
-Y_true = np.matmul(X,beta)
-Y = Y_true
+# # Y = Xb
+# Y_true = np.matmul(X,beta)
+# Y = Y_true
 
-# Define correlation matrix (5 x 5)
-correlation_matrix = np.array(
-    [[1,0.2,0.1,0.7,0.9],
-    [0.2,1,0.5,0.2,0.2],
-    [0.1,0.5,1,0.1,0],
-    [0.7,0.2,0.1,1,0.8],
-    [0.9,0.2,0,0.8,1]
-])
+# # Define correlation matrix (5 x 5)
+# correlation_matrix = np.array(
+#     [[1,0.2,0.1,0.7,0.9],
+#     [0.2,1,0.5,0.2,0.2],
+#     [0.1,0.5,1,0.1,0],
+#     [0.7,0.2,0.1,1,0.8],
+#     [0.9,0.2,0,0.8,1]
+# ])
 
-# ===================== OPTIMIZE BETA (WEIGHTS) ========================
+# # ===================== OPTIMIZE BETA (WEIGHTS) ========================
+
+# model = GFLasso(
+#     X=X, Y=Y, lambda_=1, gamma=1, correlation_matrix = correlation_matrix, correlation_function = 'absolute'
+# )
+# model.fit()
+# print("MODEL BETA:")
+# print(np.reshape(model.beta, (-1, np.size(beta, 1))))
+
+
+
+#  ===================== TESTING ON REAL DATA ========================
+print("Retrieving data ....")
+data_path = '../Real_data/'
+drug_cids = pd.read_csv(data_path + 'drug_drug_similarity.csv',index_col=0, header=None, low_memory=False).T.set_index('drug').apply(pd.to_numeric)
+train_x = pd.read_csv(data_path + 'gdsc_expr_postCB(normalized).csv', index_col=0, header=None, low_memory=False).T.set_index('cell line id').apply(pd.to_numeric)#.iloc[:,0:100]
+train_y = pd.read_csv(data_path + 'gdsc_dr_lnIC50.csv', index_col=0, header=None, low_memory=False).T.set_index('cell line id').apply(pd.to_numeric)
+
+#select 8 drugs which only exists in the drug-drug similarity matrix
+train_y = train_y.filter(drug_cids)
+
+# If a drug's DR is NaN, set it to the mean of the cell lines' DR for that drug
+imp = SimpleImputer(missing_values=np.nan, strategy='mean')
+train_y = pd.DataFrame(data=imp.fit_transform(train_y), index=train_y.index, columns=train_y.columns)
+
+correlation_matrix = drug_cids.values
+X = train_x.values
+Y = train_y.values
+print("Data ready to train")
 
 model = GFLasso(
-    X=X, Y=Y, lambda_=1, gamma=1, correlation_matrix = correlation_matrix, correlation_function = 'absolute'
+    X=X, Y=Y, lambda_=1, gamma=1, correlation_matrix=correlation_matrix, correlation_function = 'absolute'
 )
+print("Fitting the multi-task model...")
 model.fit()
-print("MODEL BETA:")
-print(np.reshape(model.beta, (-1, np.size(beta, 1))))
+print("Finished")
