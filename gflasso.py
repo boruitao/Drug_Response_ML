@@ -134,7 +134,6 @@ class GFLasso:
         self.beta = np.reshape(self.beta, (1, -1)) # Make beta 1D again to allow minimize function to work
         return(rss)
 
-    # TO-DO
     def fusion_penalty(self):
         self.beta = np.reshape(self.beta, (-1, np.size(self.beta_init, 1))) # Make beta 2D to allow calculations
         
