@@ -15,7 +15,7 @@ def L_U(X, G, K, mu, lambda_, gamma):
     return 0
 
 # TO-DO: Bijan
-def S(W_t, C, mu):
+def A_star(W_t, C, mu):
     return 0
 
 # TO-DO: Bijan
