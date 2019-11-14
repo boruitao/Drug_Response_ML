@@ -2,13 +2,50 @@ import numpy as np
 import pandas as pd
 from sklearn.impute import SimpleImputer
 
-# TO-DO: Borui
-def mu(J, K, E_size):
-    return 0
+
+def absolute_correlation(r_ml):
+        return abs(r_ml)
+
+def squared_correlation(r_ml):
+    return r_ml**2
+
+def thresholded_correlation(r_ml, corr_thresh):
+    if r_ml > corr_thresh:
+        return 1
+    else:
+        return 0
 
 # TO-DO: Borui
-def C(K, G):
-    return 0
+def mu(J, K, E_size, epsilon):
+    D = 1 / 2 * J * (K + E_size)
+    mu = epsilon / (2 * D)
+    return mu
+
+def C(lambda_, gamma, K, E_size, G, corr_func, corr_thresh):
+    I = np.ones((K, K))
+    H = np.zeros((K, E_size))
+    e = 0
+    for k in range (0, K):
+        for m in range(0, K):
+            for l in range(0, K):
+                r_ml = G[m][l]
+                f_r_ml = None
+                if self.corr_func == 'absolute':
+                    f_r_ml = self.absolute_correlation(r_ml)
+                elif self.corr_func == 'squared':
+                    f_r_ml = self.squared_correlation(r_ml)
+                elif self.corr_func == 'thresholded':
+                    f_r_ml = self.thresholded_correlation(r_ml, corr_thresh)
+                else:
+                    raise ValueError("Unrecognized correlation function. Please correct to \"absolute\", \"squared\", or \"thresholded\"")
+                if k == m:
+                    H[k, e] = f_r_ml
+                elif k == l:
+                    H[k, e] = -np.sign(r_ml) * f_r_ml
+                else:
+                    H[k, e] = 0
+                e += 1
+    return lambda_ * I, gammma * H
 
 # TO-DO: Borui
 def L_U(X, G, K, mu, lambda_, gamma):
@@ -25,7 +62,7 @@ def A_star(W_t, C, mu):
     else:
         return -1
 
-def proximal_gradient_descent(G, X, Y, J, K, lambda_, gamma, epsilon):
+def proximal_gradient_descent(G, X, Y, J, K, lambda_, gamma, epsilon, corr_func, corr_thresh=None):
     E_size = K**2
     mu = mu(J, K, E_size, epsilon)
     C = C(K, G)
