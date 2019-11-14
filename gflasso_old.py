@@ -251,8 +251,6 @@ def objective_function(beta, X, Y):
 # print("MODEL BETA:")
 # print(np.reshape(model.beta, (-1, np.size(beta, 1))))
 
-
-
 #  ===================== TESTING ON REAL DATA ========================
 print("Retrieving data ....")
 data_path = '../Data/'
