@@ -32,20 +32,22 @@ def proximal_gradient_descent(G, X, Y, J, K, lambda_, gamma, epsilon):
     L_U = L_U(X, G, K, mu, lambda_, gamma)
     if L_U == 0:
         raise ValueError("L_U cannot be zero, it would cause dividion by zero.")
-    W_0 = np.zeros((J, K))
-    W_t = W_0
+    W_t = np.zeros((J, K))
+    B_t = None
     t = 0
-    #TO-DO: create delta_f_tilde array to hold the delta_f_tilde for each t
     converged = False
     while not converged:
         A_star = A_star(W_t, C, mu)
-        # TO-DO: fix delta_f_tilde line to set the delta_f_tilde within the array for index t
         delta_f_tilde = np.add(np.matmul(X.T, np.subtract(np.matmul(X, W_t), Y)), A_star * C))
         B_t = np.subtract(W_t, delta_f_tilde / L_U)
-        Z_t = np.zeros(delta_f_tilde.shape)
-        for i in range(0, t + 1):
-            Z_t = np.add(Z_t, (i + 1) / 2 * delta_f_tilde) # TO-DO: fix delta_f_tilde
-    return 0
+        if t == 0:
+            Z_t = np.zeros(delta_f_tilde.shape)
+        else:
+            Z_t = np.add(Z_t, (-1 / L_U) * (t + 1) / 2 * delta_f_tilde)
+        W_t = np.add((t + 1) / (t + 3) * B_t, 2 / (t + 3) * Z_t)
+        t = t + 1
+        # TO-DO: add check to see if we converged, if so set converged=True
+    return B_t
 
 #  ===================== TRAINING SECTION ========================
 print("Retrieving data ....")
