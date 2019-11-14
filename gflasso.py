@@ -14,9 +14,16 @@ def C(K, G):
 def L_U(X, G, K, mu, lambda_, gamma):
     return 0
 
-# TO-DO: Bijan
-def S(W_t, C, mu):
-    return 0
+def A_star(W_t, C, mu):
+    if mu == 0:
+        raise ValueError("Parameter mu cannot be zero, it would cause division by zero.")
+    x = np.divide(np.matmul(W_t, C), mu) # TO-DO: verify what C is because I don't think it's simply a matrix
+    if x > -1 and x < -1:
+        return x
+    elif x >= 1:
+        return 1
+    else:
+        return -1
 
 # TO-DO: Bijan
 def proximal_gradient_descent(G, X, Y, J, K, lambda_, gamma):
