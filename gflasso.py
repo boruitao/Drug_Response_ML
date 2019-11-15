@@ -62,11 +62,10 @@ def get_C(lambda_, gamma, K, E_size, G, corr_func, corr_thresh):
 def get_L_U(X, G, K, mu, lambda_, gamma, corr_func, corr_thresh):
     print("--- Called L_U ---")
     print("Current time: " + str(time.time() - start_time) + " seconds")
-    #eigvals = LA.eigvals(np.matmul(X.T, X))
+    eigvals = LA.eigvals(np.matmul(X.T, X))
     print("--- Computed eigenvalues ---")
     print("Current time: " + str(time.time() - start_time) + " seconds")
-    #lambda_max = max(eigvals)
-    lambda_max = 1
+    lambda_max = max(eigvals)
     print("--- Got the max eigenvalue ---")
     print("Current time: " + str(time.time() - start_time) + " seconds")
     d_k_max = 0
