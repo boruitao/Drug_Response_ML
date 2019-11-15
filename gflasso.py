@@ -66,6 +66,7 @@ def get_L_U(X, G, K, mu, lambda_, gamma, corr_func, corr_thresh):
     print("--- Computed eigenvalues ---")
     print("Current time: " + str(time.time() - start_time) + " seconds")
     lambda_max = max(eigvals)
+    np.save(results_path + 'lambda_max.npy', lambda_max)
     print("--- Got the max eigenvalue ---")
     print("Current time: " + str(time.time() - start_time) + " seconds")
     d_k_max = 0
@@ -136,7 +137,7 @@ def proximal_gradient_descent(G, X, Y, J, K, lambda_, gamma, epsilon, iterations
         # Calculate cost (MSE)
         print("--- Calculating MSE for iteration " + str(t) + "---")
         print("Current time: " + str(time.time() - start_time) + " seconds")
-        Y_pred = np.matmul(X, W_t)
+        Y_pred = np.real(np.matmul(X, W_t))
         cost = mse(Y, Y_pred)
         cost_history.append(cost)
 
@@ -171,3 +172,5 @@ B_t, B_t_history, cost_history = proximal_gradient_descent(
 np.save(results_path + 'B_t.npy', B_t)
 np.save(results_path + 'B_t_history.npy', B_t_history)
 np.save(results_path + 'cost_history.npy', cost_history)
+
+print("Total runtime was: " + str(time.time() - start_time) + " seconds")
