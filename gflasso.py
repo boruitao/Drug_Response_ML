@@ -1,5 +1,5 @@
 import numpy as np
-from numpy import linalg as LA
+from scipy import linalg as LA
 import pandas as pd
 from sklearn.impute import SimpleImputer
 from sklearn.metrics import mean_squared_error as mse
@@ -62,8 +62,10 @@ def C(lambda_, gamma, K, E_size, G, corr_func, corr_thresh):
 def L_U(X, G, K, mu, lambda_, gamma, corr_func, corr_thresh):
     print("--- Called L_U ---")
     print("Current time: " + str(time.time() - start_time) + " seconds")
-    w, v = LA.eig(np.matmul(X.T, X))
-    lambda_max = max(w, v)
+    eigvals = LA.eigvals(np.matmul(X.T, X))
+    print("got eigvals")
+    lambda_max = max(eigvals)
+    print("got max eigval")
     d_k_max = 0
     for k in range(0, K):
         d_k = 0
@@ -154,7 +156,7 @@ train_y = train_y.filter(drug_names)
 imp = SimpleImputer(missing_values=np.nan, strategy='mean')
 train_y = pd.DataFrame(data=imp.fit_transform(train_y), index=train_y.index, columns=train_y.columns)
 
-correlation_matrix = drug_cids.values
+correlation_matrix = drug_names.values
 X = train_x.values
 Y = train_y.values
 print("Data ready to train")
@@ -163,3 +165,7 @@ B_t, B_t_history, cost_history = proximal_gradient_descent(
     G=correlation_matrix, X=X, Y=Y, J=np.size(X, 1), K=np.size(Y, 1), 
     lambda_=1, gamma=1, epsilon=1, corr_func='absolute', iterations=100
 )
+
+np.save(results_path + 'B_t.npy', B_t)
+np.save(results_path + 'B_t_history.npy', B_t_history)
+np.save(results_path + 'cost_history.npy', cost_history)
