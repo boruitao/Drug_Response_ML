@@ -50,7 +50,8 @@ def C(lambda_, gamma, K, E_size, G, corr_func, corr_thresh):
                 else:
                     H[k, e] = 0
                 e += 1
-    return lambda_ * I, gammma * H # Return two matrices: not sure if this is what C is supposed to be
+    #return lambda_ * I, gammma * H # Return two matrices: not sure if this is what C is supposed to be
+    return np.concatenate((ambda_ * I, gammma * H), axis=1)
 
 def L_U(X, G, K, mu, lambda_, gamma, corr_func, corr_thresh):
     w, v = LA.eig(np.matmul(X.T, X))
@@ -93,7 +94,8 @@ def proximal_gradient_descent(G, X, Y, J, K, lambda_, gamma, epsilon, corr_func,
     t = 0
     while t < iterations: # Instead of checking for convergence, do a set amount of iterations
         A_star = A_star(W_t, C, mu)
-        delta_f_tilde = np.add(np.matmul(X.T, np.subtract(np.matmul(X, W_t), Y)), A_star * C)) # TO-DO: verify what C is
+        #delta_f_tilde = np.add(np.matmul(X.T, np.subtract(np.matmul(X, W_t), Y)), A_star * C)) # TO-DO: verify what C is
+        delta_f_tilde = np.add(np.matmul(X.T, np.subtract(np.matmul(X, W_t), Y)), A_star * np.transpose(C)))
         B_t = np.subtract(W_t, delta_f_tilde / L_U)
         B_t_history[t] = B_t
         if t == 0:
