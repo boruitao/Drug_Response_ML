@@ -31,14 +31,14 @@ def correlation_function(r_ml, corr_func, corr_thresh):
         raise ValueError("Unrecognized correlation function. Please correct to \"absolute\", \"squared\", or \"thresholded\"")
     return f_r_ml
 
-def mu(J, K, E_size, epsilon):
+def get_mu(J, K, E_size, epsilon):
     print("--- Called mu ---")
     print("Current time: " + str(time.time() - start_time) + " seconds")
     D = 1 / 2 * J * (K + E_size)
     mu_result = epsilon / (2 * D)
     return mu_result
 
-def C(lambda_, gamma, K, E_size, G, corr_func, corr_thresh):
+def get_C(lambda_, gamma, K, E_size, G, corr_func, corr_thresh):
     print("--- Called C ---")
     print("Current time: " + str(time.time() - start_time) + " seconds")
     I = np.identity(K)
@@ -59,13 +59,16 @@ def C(lambda_, gamma, K, E_size, G, corr_func, corr_thresh):
     return np.concatenate((lambda_ * I, gamma * H), axis=1)
     #return lambda_ * I, gammma * H # Return two matrices: not sure if this is what C is supposed to be
 
-def L_U(X, G, K, mu, lambda_, gamma, corr_func, corr_thresh):
+def get_L_U(X, G, K, mu, lambda_, gamma, corr_func, corr_thresh):
     print("--- Called L_U ---")
     print("Current time: " + str(time.time() - start_time) + " seconds")
-    eigvals = LA.eigvals(np.matmul(X.T, X))
-    print("got eigvals")
-    lambda_max = max(eigvals)
-    print("got max eigval")
+    #eigvals = LA.eigvals(np.matmul(X.T, X))
+    print("--- Computed eigenvalues ---")
+    print("Current time: " + str(time.time() - start_time) + " seconds")
+    #lambda_max = max(eigvals)
+    lambda_max = 1
+    print("--- Got the max eigenvalue ---")
+    print("Current time: " + str(time.time() - start_time) + " seconds")
     d_k_max = 0
     for k in range(0, K):
         d_k = 0
@@ -78,7 +81,7 @@ def L_U(X, G, K, mu, lambda_, gamma, corr_func, corr_thresh):
     L_U = lambda_max + (lambda_**2 + 2 * gamma**2 * d_k_max) / mu
     return L_U
 
-def A_star(W_t, C, mu):
+def get_A_star(W_t, C, mu):
     print("--- A_star ---")
     print("Current time: " + str(time.time() - start_time) + " seconds")
     if mu == 0:
@@ -90,43 +93,43 @@ def A_star(W_t, C, mu):
                 x[...] = 1
             elif x <= -1:
                 x[...] = -1
-    return x
+    return inner_matrix
 
 def proximal_gradient_descent(G, X, Y, J, K, lambda_, gamma, epsilon, iterations, corr_func, corr_thresh=None):
     print("--- Called proximal_gradient_descent ---")
     print("Current time: " + str(time.time() - start_time) + " seconds")
     E_size = K**2
-    mu_result = mu(J, K, E_size, epsilon)
-    C_result = C(lambda_, gamma, K, E_size, G, corr_func, corr_thresh)
-    L_U_result = L_U(X, G, K, mu, lambda_, gamma, corr_func, corr_thresh)
-    if L_U_result == 0:
+    mu = get_mu(J, K, E_size, epsilon)
+    C = get_C(lambda_, gamma, K, E_size, G, corr_func, corr_thresh)
+    L_U = get_L_U(X, G, K, mu, lambda_, gamma, corr_func, corr_thresh)
+    if L_U == 0:
         raise ValueError("L_U cannot be zero, it would cause dividion by zero.")
     
     W_t = np.zeros((J, K))
     B_t = None
-    cost_history = np.zeros(iterations) # Store sequence of costs at each time t
-    B_t_history = np.zeros(iterations) # Store sequence of weights at each time t (B_t)
+    cost_history = [] # Store sequence of costs at each time t
+    B_t_history = [] # Store sequence of weights at each time t (B_t)
     t = 0
     print("--- Beginning optimization ---")
     print("Current time: " + str(time.time() - start_time) + " seconds")
     while t < iterations: # Instead of checking for convergence, do a set amount of iterations
         print("--- Beginning iteration " + str(t) + "---")
         print("Current time: " + str(time.time() - start_time) + " seconds")
-        A_star_res = A_star(W_t, C_result, mu_result)
+        A_star = get_A_star(W_t, C, mu)
         #delta_f_tilde = np.add(np.matmul(X.T, np.subtract(np.matmul(X, W_t), Y)), A_star * C)) # TO-DO: verify what C is
         print("--- Calculating delta_f_tilde for iteration " + str(t) + "---")
         print("Current time: " + str(time.time() - start_time) + " seconds")
-        delta_f_tilde = np.add(np.matmul(X.T, np.subtract(np.matmul(X, W_t), Y)), np.matmul(A_star_res , np.transpose(C_result)))
+        delta_f_tilde = np.add(np.matmul(X.T, np.subtract(np.matmul(X, W_t), Y)), np.matmul(A_star, np.transpose(C)))
         print("--- Calculating B_t " + str(t) + "---")
         print("Current time: " + str(time.time() - start_time) + " seconds")
-        B_t = np.subtract(W_t, delta_f_tilde / L_U_result)
-        B_t_history[t] = B_t
+        B_t = np.subtract(W_t, delta_f_tilde / L_U)
+        B_t_history.append(B_t)
         print("--- Calculating Z_t for iteration " + str(t) + "---")
         print("Current time: " + str(time.time() - start_time) + " seconds")
         if t == 0:
             Z_t = np.zeros(delta_f_tilde.shape)
         else:
-            Z_t = np.add(Z_t, (-1 / L_U_result) * (t + 1) / 2 * delta_f_tilde)
+            Z_t = np.add(Z_t, (-1 / L_U) * (t + 1) / 2 * delta_f_tilde)
         print("--- Calculating W_t for iteration " + str(t) + "---")
         print("Current time: " + str(time.time() - start_time) + " seconds")
         W_t = np.add((t + 1) / (t + 3) * B_t, 2 / (t + 3) * Z_t)
@@ -136,7 +139,7 @@ def proximal_gradient_descent(G, X, Y, J, K, lambda_, gamma, epsilon, iterations
         print("Current time: " + str(time.time() - start_time) + " seconds")
         Y_pred = np.matmul(X, W_t)
         cost = mse(Y, Y_pred)
-        cost_history[t] = cost
+        cost_history.append(cost)
 
         t = t + 1
     return B_t, B_t_history, cost_history
