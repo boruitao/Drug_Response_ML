@@ -176,7 +176,7 @@ def grid_search_cv(X, Y, G, parameters, num_folds):
     keys, values = zip(*parameters.items())
     for v in itertools.product(*values):
         candidate_params = dict(zip(keys, v))
-        print("\n================ GRID SEARCH CV - ROUND {} ================".format(round_num))
+        print("\n================================ GRID SEARCH CV - ROUND {} ================================".format(round_num))
         print("\nHyperparameters: {}".format(candidate_params))
 
         mean_train_score, mean_val_score = cross_validate(
@@ -197,7 +197,7 @@ def grid_search_cv(X, Y, G, parameters, num_folds):
 
         round_num += 1
 
-    print("\n================ GRID SEARCH CV - FINAL RESULTS ================".format(round_num))
+    print("\n================================ GRID SEARCH CV - FINAL RESULTS ================================".format(round_num))
     print("\nBest hyperparameters: {}".format(best_params))
     print("Train MSE: {}".format(best_train_score))
     print("Validation MSE: {}".format(best_val_score))
@@ -234,7 +234,5 @@ parameters = {
     'corr_func':['absolute']
 }
 best_params, best_train_score, best_val_score = grid_search_cv(X=X, Y=Y, G=correlation_matrix, parameters=parameters, num_folds=5)
-
-
 
 print("\nTotal runtime was: " + str(time.time() - start_time) + " seconds")
