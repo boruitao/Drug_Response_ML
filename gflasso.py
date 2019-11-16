@@ -3,7 +3,9 @@ from scipy import linalg as LA
 import pandas as pd
 from sklearn.impute import SimpleImputer
 from sklearn.metrics import mean_squared_error as mse
+from sklearn.model_selection import KFold
 import time
+import itertools
 
 start_time = time.time()
 
@@ -32,15 +34,11 @@ def correlation_function(r_ml, corr_func, corr_thresh):
     return f_r_ml
 
 def get_mu(J, K, E_size, epsilon):
-    print("--- Called mu ---")
-    print("Current time: " + str(time.time() - start_time) + " seconds")
     D = 1 / 2 * J * (K + E_size)
     mu_result = epsilon / (2 * D)
     return mu_result
 
 def get_C(lambda_, gamma, K, E_size, G, corr_func, corr_thresh):
-    print("--- Called C ---")
-    print("Current time: " + str(time.time() - start_time) + " seconds")
     I = np.identity(K)
     H = np.zeros((K, E_size))
     for k in range (0, K):
@@ -57,18 +55,11 @@ def get_C(lambda_, gamma, K, E_size, G, corr_func, corr_thresh):
                     H[k, e] = 0
                 e += 1
     return np.concatenate((lambda_ * I, gamma * H), axis=1)
-    #return lambda_ * I, gammma * H # Return two matrices: not sure if this is what C is supposed to be
 
 def get_L_U(X, G, K, mu, lambda_, gamma, corr_func, corr_thresh):
-    print("--- Called L_U ---")
-    print("Current time: " + str(time.time() - start_time) + " seconds")
     eigvals = LA.eigvals(np.matmul(X.T, X))
-    print("--- Computed eigenvalues ---")
-    print("Current time: " + str(time.time() - start_time) + " seconds")
     lambda_max = max(eigvals)
     np.save(results_path + 'lambda_max.npy', lambda_max)
-    print("--- Got the max eigenvalue ---")
-    print("Current time: " + str(time.time() - start_time) + " seconds")
     d_k_max = 0
     for k in range(0, K):
         d_k = 0
@@ -82,11 +73,9 @@ def get_L_U(X, G, K, mu, lambda_, gamma, corr_func, corr_thresh):
     return L_U
 
 def get_A_star(W_t, C, mu):
-    print("--- A_star ---")
-    print("Current time: " + str(time.time() - start_time) + " seconds")
     if mu == 0:
         raise ValueError("Parameter mu cannot be zero, it would cause division by zero.")
-    inner_matrix = np.matmul(W_t, C) / mu # TO-DO: verify what C is
+    inner_matrix = np.matmul(W_t, C) / mu
     with np.nditer(inner_matrix, op_flags=['readwrite']) as it:
         for x in it:
             if x >= 1:
@@ -95,9 +84,9 @@ def get_A_star(W_t, C, mu):
                 x[...] = -1
     return inner_matrix
 
-def proximal_gradient_descent(G, X, Y, J, K, lambda_, gamma, epsilon, iterations, corr_func, corr_thresh=None):
-    print("--- Called proximal_gradient_descent ---")
-    print("Current time: " + str(time.time() - start_time) + " seconds")
+def proximal_gradient_descent(G, X, Y, lambda_, gamma, epsilon, iterations, corr_func, corr_thresh=None):
+    J = np.size(X, 1)
+    K = np.size(Y, 1)
     E_size = K**2
     mu = get_mu(J, K, E_size, epsilon)
     C = get_C(lambda_, gamma, K, E_size, G, corr_func, corr_thresh)
@@ -107,50 +96,122 @@ def proximal_gradient_descent(G, X, Y, J, K, lambda_, gamma, epsilon, iterations
     
     W_t = np.zeros((J, K))
     B_t = None
-    cost_history = [] # Store sequence of costs at each time t
-    B_t_history = [] # Store sequence of weights at each time t (B_t)
     t = 0
-    print("--- Beginning optimization ---")
-    print("Current time: " + str(time.time() - start_time) + " seconds")
     while t < iterations: # Instead of checking for convergence, do a set amount of iterations
-        print("--- Beginning iteration " + str(t) + "---")
-        print("Current time: " + str(time.time() - start_time) + " seconds")
         A_star = get_A_star(W_t, C, mu)
-        #delta_f_tilde = np.add(np.matmul(X.T, np.subtract(np.matmul(X, W_t), Y)), A_star * C)) # TO-DO: verify what C is
-        print("--- Calculating delta_f_tilde for iteration " + str(t) + "---")
-        print("Current time: " + str(time.time() - start_time) + " seconds")
         delta_f_tilde = np.add(np.matmul(X.T, np.subtract(np.matmul(X, W_t), Y)), np.matmul(A_star, np.transpose(C)))
-        print("--- Calculating B_t " + str(t) + "---")
-        print("Current time: " + str(time.time() - start_time) + " seconds")
         B_t = np.subtract(W_t, delta_f_tilde / L_U)
-        B_t_history.append(B_t)
-        print("--- Calculating Z_t for iteration " + str(t) + "---")
-        print("Current time: " + str(time.time() - start_time) + " seconds")
         if t == 0:
             Z_t = np.zeros(delta_f_tilde.shape)
         else:
             Z_t = np.add(Z_t, (-1 / L_U) * (t + 1) / 2 * delta_f_tilde)
-        print("--- Calculating W_t for iteration " + str(t) + "---")
-        print("Current time: " + str(time.time() - start_time) + " seconds")
         W_t = np.add((t + 1) / (t + 3) * B_t, 2 / (t + 3) * Z_t)
-        
-        # Calculate cost (MSE)
-        print("--- Calculating MSE for iteration " + str(t) + "---")
-        print("Current time: " + str(time.time() - start_time) + " seconds")
-        Y_pred = np.real(np.matmul(X, W_t))
-        cost = mse(Y, Y_pred)
-        cost_history.append(cost)
 
         t = t + 1
-    return B_t, B_t_history, cost_history
+    #return B_t, B_t_history, cost_history
+    return B_t
+
+def cross_validate(X, Y, G, lambda_, gamma, epsilon, iterations, corr_func, corr_thresh=None, num_folds=5):
+    """
+    num_folds: number of folds to cross-validate against
+    """
+    print("")
+    
+    cv_scores = []
+    
+    # Split data into training/holdout sets
+    kf = KFold(n_splits=num_folds, shuffle=True)
+    kf.get_n_splits(X)
+    
+    # Keep track of the training and validation scores
+    train_scores = []
+    val_scores = []
+    
+    # Iterate over folds, using k-1 folds for training
+    # and the k-th fold for validation
+    f = 1
+    for train_index, test_index in kf.split(X):
+        # Training data
+        CV_X = X[train_index,:]
+        CV_Y = Y[train_index]
+        
+        # Holdout data
+        holdout_X = X[test_index,:]
+        holdout_Y = Y[test_index]
+        
+        # Fit model to training sample
+        beta = proximal_gradient_descent(
+            G=G, X=CV_X, Y=CV_Y, lambda_=lambda_, gamma=gamma, epsilon=epsilon, corr_func=corr_func, iterations=iterations, corr_thresh=corr_thresh
+        )
+
+        # Calculate training error
+        train_preds = np.real(np.matmul(CV_X, beta))
+        train_mse = mse(CV_Y, train_preds)
+        train_scores.append(train_mse)
+        
+        # Calculate holdout error
+        fold_preds = np.real(np.matmul(holdout_X, beta))
+        fold_mse = mse(holdout_Y, fold_preds)
+        val_scores.append(fold_mse)
+        print("Fold: {}. Train MSE: {}. Validation MSE: {}".format(f, train_mse, fold_mse))
+        f += 1
+    
+    # Get average training and validation score
+    mean_train_score = np.mean(train_scores)
+    mean_val_score = np.mean(val_scores)
+    print("\nAVERAGE TRAIN MSE: {}".format(mean_train_score))
+    print("AVERAGE VALIDATION MSE: {}".format(mean_val_score))
+    print("")
+    
+    return mean_train_score, mean_val_score
+
+def grid_search_cv(X, Y, G, parameters, num_folds):
+
+    best_params = None
+    best_train_score = None
+    best_val_score = None
+
+    # Iterate through each candidate
+    round_num = 1
+    keys, values = zip(*parameters.items())
+    for v in itertools.product(*values):
+        candidate_params = dict(zip(keys, v))
+        print("\n================ GRID SEARCH CV - ROUND {} ================".format(round_num))
+        print("\nHyperparameters: {}".format(candidate_params))
+
+        mean_train_score, mean_val_score = cross_validate(
+            X=X, Y=Y, G=G,
+            lambda_=candidate_params['lambda_'], 
+            gamma=candidate_params['gamma'], 
+            epsilon=candidate_params['epsilon'], 
+            iterations=candidate_params['iterations'], 
+            corr_func=candidate_params['corr_func'], 
+            num_folds=num_folds
+        )
+
+        # Update best candidate model
+        if best_val_score == None or mean_val_score < best_val_score:
+            best_params = candidate_params
+            best_train_score = mean_train_score
+            best_val_score = mean_val_score
+
+        round_num += 1
+
+    print("\n================ GRID SEARCH CV - FINAL RESULTS ================".format(round_num))
+    print("\nBest hyperparameters: {}".format(best_params))
+    print("Train MSE: {}".format(best_train_score))
+    print("Validation MSE: {}".format(best_val_score))
+
+    return best_params, best_train_score, best_val_score
+
+data_path = '../Data/'
+results_path = '../Results/'
 
 #  ===================== TRAINING SECTION ========================
 print("Retrieving data ....")
-data_path = '../Data/'
-results_path = '../Results/'
 drug_names = pd.read_csv(data_path + 'drug_drug_similarity.csv',index_col=0, header=None, low_memory=False).T.set_index('drug').apply(pd.to_numeric)
-train_x = pd.read_csv(data_path + 'gdsc_expr_postCB(normalized).csv', index_col=0, header=None, low_memory=False).T.set_index('cell line id').apply(pd.to_numeric)#.iloc[0:10:,0:5]
-train_y = pd.read_csv(data_path + 'gdsc_dr_lnIC50.csv', index_col=0, header=None, low_memory=False).T.set_index('cell line id').apply(pd.to_numeric)#.iloc[0:10:,]
+train_x = pd.read_csv(data_path + 'gdsc_expr_postCB(normalized).csv', index_col=0, header=None, low_memory=False).T.set_index('cell line id').apply(pd.to_numeric).iloc[0:10:,0:5]
+train_y = pd.read_csv(data_path + 'gdsc_dr_lnIC50.csv', index_col=0, header=None, low_memory=False).T.set_index('cell line id').apply(pd.to_numeric).iloc[0:10:,]
 
 #select 8 drugs which only exists in the drug-drug similarity matrix
 train_y = train_y.filter(drug_names)
@@ -164,13 +225,16 @@ X = train_x.values
 Y = train_y.values
 print("Data ready to train")
 
-B_t, B_t_history, cost_history = proximal_gradient_descent(
-    G=correlation_matrix, X=X, Y=Y, J=np.size(X, 1), K=np.size(Y, 1), 
-    lambda_=1, gamma=1, epsilon=1, corr_func='absolute', iterations=100
-)
+# Hyperarameters to test for grid search
+parameters = {
+    'lambda_':[1, 0.1],
+    'gamma':[1, 0.1],
+    'epsilon':[1, 0.1],
+    'iterations':[2500],
+    'corr_func':['absolute']
+}
+best_params, best_train_score, best_val_score = grid_search_cv(X=X, Y=Y, G=correlation_matrix, parameters=parameters, num_folds=5)
 
-np.save(results_path + 'B_t.npy', B_t)
-np.save(results_path + 'B_t_history.npy', B_t_history)
-np.save(results_path + 'cost_history.npy', cost_history)
 
-print("Total runtime was: " + str(time.time() - start_time) + " seconds")
+
+print("\nTotal runtime was: " + str(time.time() - start_time) + " seconds")
