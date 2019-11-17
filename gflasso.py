@@ -111,11 +111,9 @@ def get_L_U(X, G, K, mu, lambda_, gamma, corr_func, corr_thresh):
     return L_U
 
 def get_A_star(W_t, C, mu):
-    print("A-start start time: " + str(time.time() - start_time))
     if mu == 0:
         raise ValueError("Parameter mu cannot be zero, it would cause division by zero.")
     inner_matrix = np.matmul(W_t, C) / mu
-    print("A-start matrix value replacement start time: " + str(time.time() - start_time))
     # with np.nditer(inner_matrix, op_flags=['readwrite']) as it: # TODO: make this faster
     #     for x in it:
     #         if x >= 1:
@@ -124,7 +122,6 @@ def get_A_star(W_t, C, mu):
     #             x[...] = -1
     inner_matrix = np.where(inner_matrix <= -1, -1, inner_matrix)
     inner_matrix = np.where(inner_matrix >= 1, 1, inner_matrix)
-    print("A-start matrix value replacement end time: " + str(time.time() - start_time))
     return inner_matrix
 
 def proximal_gradient_descent(G, X, Y, lambda_, gamma, epsilon, max_iter, corr_func, corr_thresh=None):
@@ -140,25 +137,17 @@ def proximal_gradient_descent(G, X, Y, lambda_, gamma, epsilon, max_iter, corr_f
     W_t = np.zeros((J, K))
     B_t = None
     t = 0
-    converged = False
-    while not converged and t < max_iter:
+    while t < max_iter:
+        print("Iteration number: " + str(t) + ", Time: " + str(time.time() - start_time) + " seconds")
         A_star = get_A_star(W_t, C, mu)
         delta_f_tilde = np.add(np.matmul(X.T, np.subtract(np.matmul(X, W_t), Y)), np.matmul(A_star, np.transpose(C)))
         B_t = np.subtract(W_t, delta_f_tilde / L_U)
         if t == 0:
             Z_t = np.zeros(delta_f_tilde.shape)
-            loss_t = loss(X=X, Y=Y, G=G, beta=B_t, gamma=gamma, corr_func=corr_func, corr_thresh=corr_thresh, lambda_=lambda_)
         else:
             Z_t = np.add(Z_t, (-1 / L_U) * (t + 1) / 2 * delta_f_tilde)
-            
-            # Check for convergence
-            loss_t_minus_1 = loss_t
-            loss_t = loss(X=X, Y=Y, G=G, beta=B_t, gamma=gamma, corr_func=corr_func, corr_thresh=corr_thresh, lambda_=lambda_)
-            if abs(loss_t_minus_1 - loss_t) <= 10**-6:
-                converged = True
         W_t = np.add((t + 1) / (t + 3) * B_t, 2 / (t + 3) * Z_t)
         t = t + 1
-    #return B_t, B_t_history, cost_history
     return B_t
 
 def cross_validate(X, Y, G, lambda_, gamma, epsilon, max_iter, corr_func, corr_thresh=None, num_folds=5):
@@ -260,8 +249,8 @@ results_path = '../Results/'
 #  ===================== TRAINING SECTION ========================
 print("Retrieving data ....")
 drug_names = pd.read_csv(data_path + 'drug_drug_similarity.csv',index_col=0, header=None, low_memory=False).T.set_index('drug').apply(pd.to_numeric)
-train_x = pd.read_csv(data_path + 'gdsc_expr_postCB(normalized).csv', index_col=0, header=None, low_memory=False).T.set_index('cell line id').apply(pd.to_numeric).iloc[0:100:,0:1400]
-train_y = pd.read_csv(data_path + 'gdsc_dr_lnIC50.csv', index_col=0, header=None, low_memory=False).T.set_index('cell line id').apply(pd.to_numeric).iloc[0:100:,]
+train_x = pd.read_csv(data_path + 'gdsc_expr_postCB(normalized).csv', index_col=0, header=None, low_memory=False).T.set_index('cell line id').apply(pd.to_numeric)#.iloc[0:100:,0:1400]
+train_y = pd.read_csv(data_path + 'gdsc_dr_lnIC50.csv', index_col=0, header=None, low_memory=False).T.set_index('cell line id').apply(pd.to_numeric)#.iloc[0:100:,]
 
 #select 8 drugs which only exists in the drug-drug similarity matrix
 train_y = train_y.filter(drug_names)
@@ -279,8 +268,8 @@ print("Data ready to train")
 parameters = {
     'lambda_':[0.1, 1, 10],
     'gamma':[0.1, 1, 10],
-    'epsilon':[500],
-    'max_iter':[5000],
+    'epsilon':[50],
+    'max_iter':[250],
     'corr_func':['absolute']
 }
 best_params, best_train_score, best_val_score = grid_search_cv(X=X, Y=Y, G=correlation_matrix, parameters=parameters, num_folds=5)
