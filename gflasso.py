@@ -116,12 +116,14 @@ def get_A_star(W_t, C, mu):
         raise ValueError("Parameter mu cannot be zero, it would cause division by zero.")
     inner_matrix = np.matmul(W_t, C) / mu
     print("A-start matrix value replacement start time: " + str(time.time() - start_time))
-    with np.nditer(inner_matrix, op_flags=['readwrite']) as it: # TO-DO: make this faster
-        for x in it:
-            if x >= 1:
-                x[...] = 1
-            elif x <= -1:
-                x[...] = -1
+    # with np.nditer(inner_matrix, op_flags=['readwrite']) as it: # TODO: make this faster
+    #     for x in it:
+    #         if x >= 1:
+    #             x[...] = 1
+    #         elif x <= -1:
+    #             x[...] = -1
+    inner_matrix = np.where(inner_matrix <= -1, -1, inner_matrix)
+    inner_matrix = np.where(inner_matrix >= 1, 1, inner_matrix)
     print("A-start matrix value replacement end time: " + str(time.time() - start_time))
     return inner_matrix
 
