@@ -84,7 +84,7 @@ def get_A_star(W_t, C, mu):
                 x[...] = -1
     return inner_matrix
 
-def proximal_gradient_descent(G, X, Y, lambda_, gamma, epsilon, iterations, corr_func, corr_thresh=None):
+def proximal_gradient_descent(G, X, Y, lambda_, gamma, epsilon, max_iter, corr_func, corr_thresh=None):
     J = np.size(X, 1)
     K = np.size(Y, 1)
     E_size = K**2
@@ -97,7 +97,7 @@ def proximal_gradient_descent(G, X, Y, lambda_, gamma, epsilon, iterations, corr
     W_t = np.zeros((J, K))
     B_t = None
     t = 0
-    while t < iterations: # Instead of checking for convergence, do a set amount of iterations
+    while t < max_iter: # Instead of checking for convergence, do a set amount of iterations
         A_star = get_A_star(W_t, C, mu)
         delta_f_tilde = np.add(np.matmul(X.T, np.subtract(np.matmul(X, W_t), Y)), np.matmul(A_star, np.transpose(C)))
         B_t = np.subtract(W_t, delta_f_tilde / L_U)
@@ -111,7 +111,7 @@ def proximal_gradient_descent(G, X, Y, lambda_, gamma, epsilon, iterations, corr
     #return B_t, B_t_history, cost_history
     return B_t
 
-def cross_validate(X, Y, G, lambda_, gamma, epsilon, iterations, corr_func, corr_thresh=None, num_folds=5):
+def cross_validate(X, Y, G, lambda_, gamma, epsilon, max_iter, corr_func, corr_thresh=None, num_folds=5):
     """
     num_folds: number of folds to cross-validate against
     """
@@ -141,7 +141,7 @@ def cross_validate(X, Y, G, lambda_, gamma, epsilon, iterations, corr_func, corr
         
         # Fit model to training sample
         beta = proximal_gradient_descent(
-            G=G, X=CV_X, Y=CV_Y, lambda_=lambda_, gamma=gamma, epsilon=epsilon, corr_func=corr_func, iterations=iterations, corr_thresh=corr_thresh
+            G=G, X=CV_X, Y=CV_Y, lambda_=lambda_, gamma=gamma, epsilon=epsilon, corr_func=corr_func, max_iter=max_iter, corr_thresh=corr_thresh
         )
 
         # Calculate training error
@@ -184,7 +184,7 @@ def grid_search_cv(X, Y, G, parameters, num_folds):
             lambda_=candidate_params['lambda_'], 
             gamma=candidate_params['gamma'], 
             epsilon=candidate_params['epsilon'], 
-            iterations=candidate_params['iterations'], 
+            max_iter=candidate_params['max_iter'], 
             corr_func=candidate_params['corr_func'], 
             num_folds=num_folds
         )
@@ -230,7 +230,7 @@ parameters = {
     'lambda_':[1, 0.1],
     'gamma':[1, 0.1],
     'epsilon':[10, 1],
-    'iterations':[1000],
+    'max_iter':[1000],
     'corr_func':['absolute']
 }
 best_params, best_train_score, best_val_score = grid_search_cv(X=X, Y=Y, G=correlation_matrix, parameters=parameters, num_folds=5)
