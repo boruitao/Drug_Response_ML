@@ -210,8 +210,8 @@ results_path = '../Results/'
 #  ===================== TRAINING SECTION ========================
 print("Retrieving data ....")
 drug_names = pd.read_csv(data_path + 'drug_drug_similarity.csv',index_col=0, header=None, low_memory=False).T.set_index('drug').apply(pd.to_numeric)
-train_x = pd.read_csv(data_path + 'gdsc_expr_postCB(normalized).csv', index_col=0, header=None, low_memory=False).T.set_index('cell line id').apply(pd.to_numeric).iloc[0:10:,0:5]
-train_y = pd.read_csv(data_path + 'gdsc_dr_lnIC50.csv', index_col=0, header=None, low_memory=False).T.set_index('cell line id').apply(pd.to_numeric).iloc[0:10:,]
+train_x = pd.read_csv(data_path + 'gdsc_expr_postCB(normalized).csv', index_col=0, header=None, low_memory=False).T.set_index('cell line id').apply(pd.to_numeric)#.iloc[0:10:,0:5]
+train_y = pd.read_csv(data_path + 'gdsc_dr_lnIC50.csv', index_col=0, header=None, low_memory=False).T.set_index('cell line id').apply(pd.to_numeric)#.iloc[0:10:,]
 
 #select 8 drugs which only exists in the drug-drug similarity matrix
 train_y = train_y.filter(drug_names)
@@ -229,8 +229,8 @@ print("Data ready to train")
 parameters = {
     'lambda_':[1, 0.1],
     'gamma':[1, 0.1],
-    'epsilon':[1, 0.1],
-    'iterations':[2500],
+    'epsilon':[10, 1],
+    'iterations':[1000],
     'corr_func':['absolute']
 }
 best_params, best_train_score, best_val_score = grid_search_cv(X=X, Y=Y, G=correlation_matrix, parameters=parameters, num_folds=5)
