@@ -9,6 +9,44 @@ import itertools
 
 start_time = time.time()
 
+def loss(X, Y, G, beta, gamma, corr_func, corr_thresh, lambda_):
+    return np.real(rss(X, Y, beta) + l1_penalty(beta, lambda_) + fusion_penalty(G, beta, gamma, corr_func, corr_thresh))
+
+def rss(X, Y, beta):
+    rss = 0
+    # For each drug
+    for k in range(np.size(Y, 1)):
+        # Compute (y_k - XB_k)
+        y_k = Y[:,k]
+        beta_k = beta[:,k]
+        y_delta = y_k - np.matmul(X, beta_k)
+        # Take the transpose
+        # Multiply the transpose with (y_k - XB_k)
+        rss_k = np.matmul(y_delta, y_delta.T)
+        rss += rss_k
+
+    return(rss)
+
+def fusion_penalty(G, beta, gamma, corr_func, corr_thresh):
+    penalty = 0
+
+    for m in range(0, np.size(G, 0)): # Iterate through rows
+        for l in range(m, np.size(G, 1)): # Iterate through cols, skipping "edges" that already occured
+            r_ml = G[m][l]
+            abs_sum = 0
+            for j in range(0, np.size(beta, 0)): # Iterate through rows
+                abs_sum += abs(beta[j][m] - np.sign(r_ml) * beta[j][l])
+            f_r_ml = correlation_function(r_ml, corr_func, corr_thresh)
+            penalty += f_r_ml * abs_sum
+    
+    # Multiply penalty by gamma
+    penalty = gamma * penalty
+    
+    return(penalty)
+
+def l1_penalty(beta, lambda_):
+    return np.sum(lambda_*np.absolute(np.array(beta)))
+
 def absolute_correlation(r_ml):
     return abs(r_ml)
 
@@ -97,17 +135,27 @@ def proximal_gradient_descent(G, X, Y, lambda_, gamma, epsilon, max_iter, corr_f
     W_t = np.zeros((J, K))
     B_t = None
     t = 0
-    while t < max_iter: # Instead of checking for convergence, do a set amount of iterations
+    converged = False
+    while not converged and t < max_iter:
         A_star = get_A_star(W_t, C, mu)
         delta_f_tilde = np.add(np.matmul(X.T, np.subtract(np.matmul(X, W_t), Y)), np.matmul(A_star, np.transpose(C)))
         B_t = np.subtract(W_t, delta_f_tilde / L_U)
         if t == 0:
             Z_t = np.zeros(delta_f_tilde.shape)
+            loss_t = loss(X=X, Y=Y, G=G, beta=B_t, gamma=gamma, corr_func=corr_func, corr_thresh=corr_thresh, lambda_=lambda_)
         else:
             Z_t = np.add(Z_t, (-1 / L_U) * (t + 1) / 2 * delta_f_tilde)
-        W_t = np.add((t + 1) / (t + 3) * B_t, 2 / (t + 3) * Z_t)
+            
+            # Check for convergence
+            loss_t_minus_1 = loss_t
+            loss_t = loss(X=X, Y=Y, G=G, beta=B_t, gamma=gamma, corr_func=corr_func, corr_thresh=corr_thresh, lambda_=lambda_)
+            if abs(loss_t_minus_1 - loss_t) <= 10**-6:
+                converged = True
 
+        W_t = np.add((t + 1) / (t + 3) * B_t, 2 / (t + 3) * Z_t)
+    
         t = t + 1
+        
     #return B_t, B_t_history, cost_history
     return B_t
 
@@ -210,8 +258,8 @@ results_path = '../Results/'
 #  ===================== TRAINING SECTION ========================
 print("Retrieving data ....")
 drug_names = pd.read_csv(data_path + 'drug_drug_similarity.csv',index_col=0, header=None, low_memory=False).T.set_index('drug').apply(pd.to_numeric)
-train_x = pd.read_csv(data_path + 'gdsc_expr_postCB(normalized).csv', index_col=0, header=None, low_memory=False).T.set_index('cell line id').apply(pd.to_numeric)#.iloc[0:10:,0:5]
-train_y = pd.read_csv(data_path + 'gdsc_dr_lnIC50.csv', index_col=0, header=None, low_memory=False).T.set_index('cell line id').apply(pd.to_numeric)#.iloc[0:10:,]
+train_x = pd.read_csv(data_path + 'gdsc_expr_postCB(normalized).csv', index_col=0, header=None, low_memory=False).T.set_index('cell line id').apply(pd.to_numeric)#.iloc[0:100:,0:20]
+train_y = pd.read_csv(data_path + 'gdsc_dr_lnIC50.csv', index_col=0, header=None, low_memory=False).T.set_index('cell line id').apply(pd.to_numeric)#.iloc[0:100:,]
 
 #select 8 drugs which only exists in the drug-drug similarity matrix
 train_y = train_y.filter(drug_names)
@@ -229,7 +277,7 @@ print("Data ready to train")
 parameters = {
     'lambda_':[1, 0.1],
     'gamma':[1, 0.1],
-    'epsilon':[10, 1],
+    'epsilon':[385, 1],
     'max_iter':[1000],
     'corr_func':['absolute']
 }
