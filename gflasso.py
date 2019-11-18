@@ -95,7 +95,7 @@ def get_C(lambda_, gamma, K, E_size, G, corr_func, corr_thresh):
     return np.concatenate((lambda_ * I, gamma * H), axis=1)
 
 def get_L_U(X, G, K, mu, lambda_, gamma, corr_func, corr_thresh):
-    eigvals = LA.eigvals(np.matmul(X.T, X))
+    #eigvals = LA.eigvals(np.matmul(X.T, X))
     #lambda_max = max(eigvals)
     lambda_max = 877783.158 # Value printed from previous run
     d_k_max = 0
