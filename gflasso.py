@@ -96,8 +96,8 @@ def get_C(lambda_, gamma, K, E_size, G, corr_func, corr_thresh):
 
 def get_L_U(X, G, K, mu, lambda_, gamma, corr_func, corr_thresh):
     eigvals = LA.eigvals(np.matmul(X.T, X))
-    lambda_max = max(eigvals)
-    #np.save(results_path + 'lambda_max.npy', lambda_max)
+    #lambda_max = max(eigvals)
+    lambda_max = 877783.158 # Value printed from previous run
     d_k_max = 0
     for k in range(0, K):
         d_k = 0
@@ -171,7 +171,7 @@ def proximal_gradient_descent(G, X, Y, lambda_, gamma, epsilon, max_iter, corr_f
 
         W_t = np.add((t + 1) / (t + 3) * B_t, 2 / (t + 3) * Z_t)
         t = t + 1
-        print("Train MSE: " + str(val_MSE))
+        print("Train MSE: " + str(train_MSE))
         print("Val MSE: " + str(val_MSE))
         print("Best val MSE: " + str(best_val_MSE))
         print("")
@@ -294,10 +294,10 @@ print("Data ready to train")
 
 # Hyperarameters to test for grid search
 parameters = {
-    'lambda_':[1],
-    'gamma':[1],
+    'lambda_':[0.1],
+    'gamma':[0.1],
     'epsilon':[385],
-    'max_iter':[100],
+    'max_iter':[50],
     'corr_func':['absolute']
 }
 best_params, best_train_score, best_val_score = grid_search_cv(X=X, Y=Y, G=correlation_matrix, parameters=parameters, num_folds=5)
