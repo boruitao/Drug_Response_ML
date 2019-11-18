@@ -97,7 +97,7 @@ def get_C(lambda_, gamma, K, E_size, G, corr_func, corr_thresh):
 def get_L_U(X, G, K, mu, lambda_, gamma, corr_func, corr_thresh):
     eigvals = LA.eigvals(np.matmul(X.T, X))
     lambda_max = max(eigvals)
-    np.save(results_path + 'lambda_max.npy', lambda_max)
+    #np.save(results_path + 'lambda_max.npy', lambda_max)
     d_k_max = 0
     for k in range(0, K):
         d_k = 0
@@ -125,30 +125,58 @@ def get_A_star(W_t, C, mu):
     return inner_matrix
 
 def proximal_gradient_descent(G, X, Y, lambda_, gamma, epsilon, max_iter, corr_func, corr_thresh=None):
+    split_index = int(0.9 * len(X))
+    X_90, X_10 = X[:split_index], X[split_index:]
+    Y_90, Y_10 = Y[:split_index], Y[split_index:]
+
     J = np.size(X, 1)
     K = np.size(Y, 1)
     E_size = K**2
     mu = get_mu(J, K, E_size, epsilon)
     C = get_C(lambda_, gamma, K, E_size, G, corr_func, corr_thresh)
-    L_U = get_L_U(X, G, K, mu, lambda_, gamma, corr_func, corr_thresh)
+    L_U = get_L_U(X_90, G, K, mu, lambda_, gamma, corr_func, corr_thresh)
     if L_U == 0:
-        raise ValueError("L_U cannot be zero, it would cause dividion by zero.")
-    
+        raise ValueError("L_U cannot be zero, it would cause dividion by zero.")  
     W_t = np.zeros((J, K))
     B_t = None
+    best_B_t = None # Store weights for which had best val MSE
+    best_val_MSE = None # Store best val MSE
+    best_iteration = None # Iteration where found lowest val MSE
     t = 0
     while t < max_iter:
         print("Iteration number: " + str(t) + ", Time: " + str(time.time() - start_time) + " seconds")
         A_star = get_A_star(W_t, C, mu)
-        delta_f_tilde = np.add(np.matmul(X.T, np.subtract(np.matmul(X, W_t), Y)), np.matmul(A_star, np.transpose(C)))
+        delta_f_tilde = np.add(np.matmul(X_90.T, np.subtract(np.matmul(X_90, W_t), Y_90)), np.matmul(A_star, np.transpose(C)))
         B_t = np.subtract(W_t, delta_f_tilde / L_U)
+        
+        # Validation
+        Y_90_preds = np.real(np.matmul(X_90, B_t))
+        train_MSE = mse(Y_90, Y_90_preds)
+        Y_10_preds = np.real(np.matmul(X_10, B_t))
+        val_MSE = mse(Y_10, Y_10_preds)
+
         if t == 0:
             Z_t = np.zeros(delta_f_tilde.shape)
+            
+            # Update best val MSE and weights
+            best_val_MSE = val_MSE
+            best_B_t = B_t
         else:
             Z_t = np.add(Z_t, (-1 / L_U) * (t + 1) / 2 * delta_f_tilde)
+
+            # Update best val MSE and weights
+            if val_MSE < best_val_MSE:      
+                best_val_MSE = val_MSE
+                best_B_t = B_t
+
         W_t = np.add((t + 1) / (t + 3) * B_t, 2 / (t + 3) * Z_t)
         t = t + 1
-    return B_t
+        print("Train MSE: " + str(val_MSE))
+        print("Val MSE: " + str(val_MSE))
+        print("Best val MSE: " + str(best_val_MSE))
+        print("")
+
+    return best_B_t
 
 def cross_validate(X, Y, G, lambda_, gamma, epsilon, max_iter, corr_func, corr_thresh=None, num_folds=5):
     """
@@ -249,8 +277,8 @@ results_path = '../Results/'
 #  ===================== TRAINING SECTION ========================
 print("Retrieving data ....")
 drug_names = pd.read_csv(data_path + 'drug_drug_similarity.csv',index_col=0, header=None, low_memory=False).T.set_index('drug').apply(pd.to_numeric)
-train_x = pd.read_csv(data_path + 'gdsc_expr_postCB(normalized).csv', index_col=0, header=None, low_memory=False).T.set_index('cell line id').apply(pd.to_numeric)#.iloc[0:100:,0:1400]
-train_y = pd.read_csv(data_path + 'gdsc_dr_lnIC50.csv', index_col=0, header=None, low_memory=False).T.set_index('cell line id').apply(pd.to_numeric)#.iloc[0:100:,]
+train_x = pd.read_csv(data_path + 'gdsc_expr_postCB(normalized).csv', index_col=0, header=None, low_memory=False).T.set_index('cell line id').apply(pd.to_numeric)#.iloc[:,0:500]
+train_y = pd.read_csv(data_path + 'gdsc_dr_lnIC50.csv', index_col=0, header=None, low_memory=False).T.set_index('cell line id').apply(pd.to_numeric)#.iloc[:,]
 
 #select 8 drugs which only exists in the drug-drug similarity matrix
 train_y = train_y.filter(drug_names)
@@ -266,10 +294,10 @@ print("Data ready to train")
 
 # Hyperarameters to test for grid search
 parameters = {
-    'lambda_':[0.1, 1, 10],
-    'gamma':[0.1, 1, 10],
-    'epsilon':[50],
-    'max_iter':[250],
+    'lambda_':[1],
+    'gamma':[1],
+    'epsilon':[385],
+    'max_iter':[100],
     'corr_func':['absolute']
 }
 best_params, best_train_score, best_val_score = grid_search_cv(X=X, Y=Y, G=correlation_matrix, parameters=parameters, num_folds=5)
