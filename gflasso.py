@@ -176,7 +176,7 @@ def proximal_gradient_descent(G, X, Y, lambda_, gamma, epsilon, max_iter, corr_f
         print("Best val MSE: " + str(best_val_MSE))
         print("")
 
-    return best_B_t
+    return B_t
 
 def cross_validate(X, Y, G, lambda_, gamma, epsilon, max_iter, corr_func, corr_thresh=None, num_folds=5):
     """
@@ -253,6 +253,7 @@ def grid_search_cv(X, Y, G, parameters, num_folds):
             epsilon=candidate_params['epsilon'], 
             max_iter=candidate_params['max_iter'], 
             corr_func=candidate_params['corr_func'], 
+            corr_thresh=candidate_params['corr_thresh'],
             num_folds=num_folds
         )
 
@@ -294,11 +295,12 @@ print("Data ready to train")
 
 # Hyperarameters to test for grid search
 parameters = {
-    'lambda_':[0.1],
-    'gamma':[0.1],
-    'epsilon':[385],
+    'lambda_':[10],
+    'gamma':[10],
+    'epsilon':[1],
     'max_iter':[50],
-    'corr_func':['absolute']
+    'corr_func':['absolute'],
+    'corr_thresh':[1]
 }
 best_params, best_train_score, best_val_score = grid_search_cv(X=X, Y=Y, G=correlation_matrix, parameters=parameters, num_folds=5)
 
