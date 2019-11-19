@@ -6,8 +6,61 @@ from sklearn.metrics import mean_squared_error as mse
 from sklearn.model_selection import KFold
 import time
 import itertools
+from scipy import stats
 
 start_time = time.time()
+
+# Takes two numpy arrays as input: y_actual, y_predicted
+# Returns two sample groups:
+#   The first contains a list of predicted drug response values for which the patient's actual response was 0
+#   The second contains a list of predicted drug response values for which the patient's actual response was 1
+def get_t_test_groups(y_actual, y_predicted):
+    
+    # Ensure the sizes are the same
+    try:
+        assert len(y_actual) == len(y_predicted)
+    except AssertionError:
+        print("AssertionError: size of y_actual and y_predicted must be the same")
+        print("y_actual size: " + str(len(y_actual)))
+        print("y_predicted size: " + str(len(y_predicted)))
+
+    # Construct the two sample groups
+    drug_responses_0 = []
+    drug_responses_1 = []
+    for i in range(len(y_actual)):
+        if y_actual[i] == 0:
+            drug_responses_0.append(y_predicted[i])
+        elif y_actual[i] == 1:
+            drug_responses_1.append(y_predicted[i])
+
+    return drug_responses_0, drug_responses_1
+
+# Takes in y_test and converts the four categories to 0 and 1
+# "Complete response" and "Partial response" are mapped to 1
+# "Stable disease" and "Clinical progressive disease" are mapped to 0
+def category_to_binary(y_test):
+    y_test_binary = y_test
+    for drug_name in list(y_test_binary.columns.values):
+        y_test_binary = y_test_binary.replace("Complete Response", 1)
+        y_test_binary = y_test_binary.replace("Partial Response", 1)
+        y_test_binary = y_test_binary.replace("Stable Disease", 0)
+        y_test_binary = y_test_binary.replace("Clinical Progressive Disease", 0)
+    return y_test_binary
+
+# Perform one-tailed t-test to verify the mean of resistant group is higher than the mean of sensitive group
+# drug_responses_0: the resistant group
+# drug_responses_1: the sensitive group
+def one_tailed_t_test(drug_responses_0, drug_responses_1):
+    t, p = stats.ttest_ind(drug_responses_0, drug_responses_1)
+
+    # Correct sign
+    if t >= 0:
+        p = p / 2
+    # Incorrect sign
+    else:
+        p = 1 - p / 2
+
+    return t, p
 
 def loss(X, Y, G, beta, gamma, corr_func, corr_thresh, lambda_):
     return np.real(rss(X, Y, beta) + l1_penalty(beta, lambda_) + fusion_penalty(G, beta, gamma, corr_func, corr_thresh))
@@ -125,16 +178,16 @@ def get_A_star(W_t, C, mu):
     return inner_matrix
 
 def proximal_gradient_descent(G, X, Y, lambda_, gamma, epsilon, max_iter, corr_func, corr_thresh=None):
-    split_index = int(0.9 * len(X))
-    X_90, X_10 = X[:split_index], X[split_index:]
-    Y_90, Y_10 = Y[:split_index], Y[split_index:]
+    # split_index = int(0.9 * len(X))
+    # X_90, X_10 = X[:split_index], X[split_index:]
+    # Y_90, Y_10 = Y[:split_index], Y[split_index:]
 
     J = np.size(X, 1)
     K = np.size(Y, 1)
     E_size = K**2
     mu = get_mu(J, K, E_size, epsilon)
     C = get_C(lambda_, gamma, K, E_size, G, corr_func, corr_thresh)
-    L_U = get_L_U(X_90, G, K, mu, lambda_, gamma, corr_func, corr_thresh)
+    L_U = get_L_U(X, G, K, mu, lambda_, gamma, corr_func, corr_thresh)
     if L_U == 0:
         raise ValueError("L_U cannot be zero, it would cause dividion by zero.")  
     W_t = np.zeros((J, K))
@@ -146,35 +199,35 @@ def proximal_gradient_descent(G, X, Y, lambda_, gamma, epsilon, max_iter, corr_f
     while t < max_iter:
         print("Iteration number: " + str(t) + ", Time: " + str(time.time() - start_time) + " seconds")
         A_star = get_A_star(W_t, C, mu)
-        delta_f_tilde = np.add(np.matmul(X_90.T, np.subtract(np.matmul(X_90, W_t), Y_90)), np.matmul(A_star, np.transpose(C)))
+        delta_f_tilde = np.add(np.matmul(X.T, np.subtract(np.matmul(X, W_t), Y)), np.matmul(A_star, np.transpose(C)))
         B_t = np.subtract(W_t, delta_f_tilde / L_U)
         
         # Validation
-        Y_90_preds = np.real(np.matmul(X_90, B_t))
-        train_MSE = mse(Y_90, Y_90_preds)
-        Y_10_preds = np.real(np.matmul(X_10, B_t))
-        val_MSE = mse(Y_10, Y_10_preds)
+        # Y_90_preds = np.real(np.matmul(X_90, B_t))
+        # train_MSE = mse(Y_90, Y_90_preds)
+        # Y_10_preds = np.real(np.matmul(X_10, B_t))
+        # val_MSE = mse(Y_10, Y_10_preds)
 
         if t == 0:
             Z_t = np.zeros(delta_f_tilde.shape)
             
             # Update best val MSE and weights
-            best_val_MSE = val_MSE
-            best_B_t = B_t
+            # best_val_MSE = val_MSE
+            # best_B_t = B_t
         else:
             Z_t = np.add(Z_t, (-1 / L_U) * (t + 1) / 2 * delta_f_tilde)
 
             # Update best val MSE and weights
-            if val_MSE < best_val_MSE:      
-                best_val_MSE = val_MSE
-                best_B_t = B_t
+            # if val_MSE < best_val_MSE:      
+            #     best_val_MSE = val_MSE
+            #     best_B_t = B_t
 
         W_t = np.add((t + 1) / (t + 3) * B_t, 2 / (t + 3) * Z_t)
         t = t + 1
-        print("Train MSE: " + str(train_MSE))
-        print("Val MSE: " + str(val_MSE))
-        print("Best val MSE: " + str(best_val_MSE))
-        print("")
+        # print("Train MSE: " + str(train_MSE))
+        # print("Val MSE: " + str(val_MSE))
+        # print("Best val MSE: " + str(best_val_MSE))
+        # print("")
 
     return B_t
 
@@ -274,6 +327,7 @@ def grid_search_cv(X, Y, G, parameters, num_folds):
 
 data_path = '../Data/'
 results_path = '../Results/'
+model_name = 'GFLasso'
 
 #  ===================== TRAINING SECTION ========================
 print("Retrieving data ....")
@@ -294,14 +348,53 @@ Y = train_y.values
 print("Data ready to train")
 
 # Hyperarameters to test for grid search
-parameters = {
-    'lambda_':[10],
-    'gamma':[10],
-    'epsilon':[1],
-    'max_iter':[50],
-    'corr_func':['absolute'],
-    'corr_thresh':[1]
-}
-best_params, best_train_score, best_val_score = grid_search_cv(X=X, Y=Y, G=correlation_matrix, parameters=parameters, num_folds=5)
+# parameters = {
+#     'lambda_':[10],
+#     'gamma':[10],
+#     'epsilon':[1],
+#     'max_iter':[50],
+#     'corr_func':['absolute'],
+#     'corr_thresh':[1]
+# }
+# best_params, best_train_score, best_val_score = grid_search_cv(X=X, Y=Y, G=correlation_matrix, parameters=parameters, num_folds=5)
+beta = proximal_gradient_descent(X=X, Y=Y, G=correlation_matrix, lambda_=1, gamma=1, epsilon=1, max_iter=50, corr_func='absolute', corr_thresh=None)
+
+#  ===================== TESTING SECTION ========================
+print("Retrieving data for test ....")
+x_test = pd.read_csv(data_path + 'tcga_expr_postCB(normalized).csv', index_col=0, header=None, low_memory=False).T.set_index('patient id').apply(pd.to_numeric)#.iloc[:,0:500]
+y_test = pd.read_csv(data_path + 'tcga_dr.csv', index_col=0, header=None, low_memory=False).T.set_index('patient id')
+y_test_binary = category_to_binary(y_test)
+
+# Matrix to store drug statistics, including t-statistic and p-value for each drug
+results = y_test.describe().T.join(pd.DataFrame(index=y_test.columns, columns=['T-statistic', 'P-value']))
+results = results.drop(["count", "unique", "top", "freq"], axis=1)
+
+# Predict y_test
+print("Predicting y test...")
+print(x_test.shape)
+print(beta.shape)
+preds = np.real(np.matmul(x_test.values, beta))
+y_test_prediction = pd.DataFrame(data=preds, index=y_test.index, columns=y_test.columns)
+
+# For each drug, execute a t-test and store the results
+for drug in y_test_binary.columns:
+
+    # Get the drug response vector for a single drug
+    y_test_prediction_single = y_test_prediction[drug] # assign column headers to y_test_prediction
+    y_test_actual_single = y_test_binary[drug]
+
+    # Get sample groups for category 0 and category 1
+    drug_responses_0, drug_responses_1 = get_t_test_groups(y_test_actual_single.values, y_test_prediction_single)
+
+    # Perform T-test
+    print("Performing t-test for drug: " + str(drug))
+    drug_responses_0, drug_responses_1 = get_t_test_groups(y_test_actual_single.values, y_test_prediction_single)
+    t, p = one_tailed_t_test(drug_responses_0, drug_responses_1)
+    results.loc[drug, 'T-statistic'] = t
+    results.loc[drug, 'P-value'] = p
+
+# Store results in csv file
+results_file_name = 'results(' + model_name + ').csv'
+results.to_csv(results_path + results_file_name)
 
 print("\nTotal runtime was: " + str(time.time() - start_time) + " seconds")
