@@ -178,20 +178,21 @@ def get_A_star(W_t, C, mu):
     return inner_matrix
 
 def proximal_gradient_descent(G, X, Y, lambda_, gamma, epsilon, max_iter, corr_func, corr_thresh=None):
-    # split_index = int(0.9 * len(X))
-    # X_90, X_10 = X[:split_index], X[split_index:]
-    # Y_90, Y_10 = Y[:split_index], Y[split_index:]
+    split_index = int(0.9 * len(X))
+    X_90, X_10 = X[:split_index], X[split_index:]
+    Y_90, Y_10 = Y[:split_index], Y[split_index:]
 
-    J = np.size(X, 1)
-    K = np.size(Y, 1)
+    J = np.size(X_90, 1)
+    K = np.size(Y_90, 1)
     E_size = K**2
     mu = get_mu(J, K, E_size, epsilon)
     C = get_C(lambda_, gamma, K, E_size, G, corr_func, corr_thresh)
-    L_U = get_L_U(X, G, K, mu, lambda_, gamma, corr_func, corr_thresh)
+    L_U = get_L_U(X_90, G, K, mu, lambda_, gamma, corr_func, corr_thresh)
     if L_U == 0:
         raise ValueError("L_U cannot be zero, it would cause dividion by zero.")  
     W_t = np.zeros((J, K))
     B_t = None
+    Z_t = None
     best_B_t = None # Store weights for which had best val MSE
     best_val_MSE = None # Store best val MSE
     best_iteration = None # Iteration where found lowest val MSE
@@ -199,35 +200,36 @@ def proximal_gradient_descent(G, X, Y, lambda_, gamma, epsilon, max_iter, corr_f
     while t < max_iter:
         print("Iteration number: " + str(t) + ", Time: " + str(time.time() - start_time) + " seconds")
         A_star = get_A_star(W_t, C, mu)
-        delta_f_tilde = np.add(np.matmul(X.T, np.subtract(np.matmul(X, W_t), Y)), np.matmul(A_star, np.transpose(C)))
+        delta_f_tilde = np.add(np.matmul(X_90.T, np.subtract(np.matmul(X_90, W_t), Y_90)), np.matmul(A_star, np.transpose(C)))
         B_t = np.subtract(W_t, delta_f_tilde / L_U)
         
         # Validation
-        # Y_90_preds = np.real(np.matmul(X_90, B_t))
-        # train_MSE = mse(Y_90, Y_90_preds)
-        # Y_10_preds = np.real(np.matmul(X_10, B_t))
-        # val_MSE = mse(Y_10, Y_10_preds)
+        Y_90_preds = np.real(np.matmul(X_90, B_t))
+        train_MSE = mse(Y_90, Y_90_preds)
+        Y_10_preds = np.real(np.matmul(X_10, B_t))
+        val_MSE = mse(Y_10, Y_10_preds)
 
         if t == 0:
             Z_t = np.zeros(delta_f_tilde.shape)
+            Z_t = np.add(Z_t, (-1 / L_U) * (t + 1) / 2 * delta_f_tilde)
             
             # Update best val MSE and weights
-            # best_val_MSE = val_MSE
-            # best_B_t = B_t
+            best_val_MSE = val_MSE
+            best_B_t = B_t
         else:
             Z_t = np.add(Z_t, (-1 / L_U) * (t + 1) / 2 * delta_f_tilde)
 
             # Update best val MSE and weights
-            # if val_MSE < best_val_MSE:      
-            #     best_val_MSE = val_MSE
-            #     best_B_t = B_t
+            if val_MSE < best_val_MSE:      
+                best_val_MSE = val_MSE
+                best_B_t = B_t
 
         W_t = np.add((t + 1) / (t + 3) * B_t, 2 / (t + 3) * Z_t)
         t = t + 1
-        # print("Train MSE: " + str(train_MSE))
-        # print("Val MSE: " + str(val_MSE))
-        # print("Best val MSE: " + str(best_val_MSE))
-        # print("")
+        print("Train MSE: " + str(train_MSE))
+        print("Val MSE: " + str(val_MSE))
+        print("Best val MSE: " + str(best_val_MSE))
+        print("")
 
     return B_t
 
@@ -348,53 +350,53 @@ Y = train_y.values
 print("Data ready to train")
 
 # Hyperarameters to test for grid search
-# parameters = {
-#     'lambda_':[10],
-#     'gamma':[10],
-#     'epsilon':[1],
-#     'max_iter':[50],
-#     'corr_func':['absolute'],
-#     'corr_thresh':[1]
-# }
-# best_params, best_train_score, best_val_score = grid_search_cv(X=X, Y=Y, G=correlation_matrix, parameters=parameters, num_folds=5)
-beta = proximal_gradient_descent(X=X, Y=Y, G=correlation_matrix, lambda_=1, gamma=1, epsilon=1, max_iter=50, corr_func='absolute', corr_thresh=None)
+parameters = {
+    'lambda_':[10],
+    'gamma':[10],
+    'epsilon':[1],
+    'max_iter':[50],
+    'corr_func':['absolute'],
+    'corr_thresh':[1]
+}
+best_params, best_train_score, best_val_score = grid_search_cv(X=X, Y=Y, G=correlation_matrix, parameters=parameters, num_folds=5)
+#beta = proximal_gradient_descent(X=X, Y=Y, G=correlation_matrix, lambda_=1, gamma=1, epsilon=1, max_iter=50, corr_func='absolute', corr_thresh=None)
 
 #  ===================== TESTING SECTION ========================
-print("Retrieving data for test ....")
-x_test = pd.read_csv(data_path + 'tcga_expr_postCB(normalized).csv', index_col=0, header=None, low_memory=False).T.set_index('patient id').apply(pd.to_numeric)#.iloc[:,0:500]
-y_test = pd.read_csv(data_path + 'tcga_dr.csv', index_col=0, header=None, low_memory=False).T.set_index('patient id')
-y_test_binary = category_to_binary(y_test)
+# print("Retrieving data for test ....")
+# x_test = pd.read_csv(data_path + 'tcga_expr_postCB(normalized).csv', index_col=0, header=None, low_memory=False).T.set_index('patient id').apply(pd.to_numeric)#.iloc[:,0:500]
+# y_test = pd.read_csv(data_path + 'tcga_dr.csv', index_col=0, header=None, low_memory=False).T.set_index('patient id')
+# y_test_binary = category_to_binary(y_test)
 
-# Matrix to store drug statistics, including t-statistic and p-value for each drug
-results = y_test.describe().T.join(pd.DataFrame(index=y_test.columns, columns=['T-statistic', 'P-value']))
-results = results.drop(["count", "unique", "top", "freq"], axis=1)
+# # Matrix to store drug statistics, including t-statistic and p-value for each drug
+# results = y_test.describe().T.join(pd.DataFrame(index=y_test.columns, columns=['T-statistic', 'P-value']))
+# results = results.drop(["count", "unique", "top", "freq"], axis=1)
 
-# Predict y_test
-print("Predicting y test...")
-print(x_test.shape)
-print(beta.shape)
-preds = np.real(np.matmul(x_test.values, beta))
-y_test_prediction = pd.DataFrame(data=preds, index=y_test.index, columns=y_test.columns)
+# # Predict y_test
+# print("Predicting y test...")
+# print(x_test.shape)
+# print(beta.shape)
+# preds = np.real(np.matmul(x_test.values, beta))
+# y_test_prediction = pd.DataFrame(data=preds, index=y_test.index, columns=y_test.columns)
 
-# For each drug, execute a t-test and store the results
-for drug in y_test_binary.columns:
+# # For each drug, execute a t-test and store the results
+# for drug in y_test_binary.columns:
 
-    # Get the drug response vector for a single drug
-    y_test_prediction_single = y_test_prediction[drug] # assign column headers to y_test_prediction
-    y_test_actual_single = y_test_binary[drug]
+#     # Get the drug response vector for a single drug
+#     y_test_prediction_single = y_test_prediction[drug] # assign column headers to y_test_prediction
+#     y_test_actual_single = y_test_binary[drug]
 
-    # Get sample groups for category 0 and category 1
-    drug_responses_0, drug_responses_1 = get_t_test_groups(y_test_actual_single.values, y_test_prediction_single)
+#     # Get sample groups for category 0 and category 1
+#     drug_responses_0, drug_responses_1 = get_t_test_groups(y_test_actual_single.values, y_test_prediction_single)
 
-    # Perform T-test
-    print("Performing t-test for drug: " + str(drug))
-    drug_responses_0, drug_responses_1 = get_t_test_groups(y_test_actual_single.values, y_test_prediction_single)
-    t, p = one_tailed_t_test(drug_responses_0, drug_responses_1)
-    results.loc[drug, 'T-statistic'] = t
-    results.loc[drug, 'P-value'] = p
+#     # Perform T-test
+#     print("Performing t-test for drug: " + str(drug))
+#     drug_responses_0, drug_responses_1 = get_t_test_groups(y_test_actual_single.values, y_test_prediction_single)
+#     t, p = one_tailed_t_test(drug_responses_0, drug_responses_1)
+#     results.loc[drug, 'T-statistic'] = t
+#     results.loc[drug, 'P-value'] = p
 
-# Store results in csv file
-results_file_name = 'results(' + model_name + ').csv'
-results.to_csv(results_path + results_file_name)
+# # Store results in csv file
+# results_file_name = 'results(' + model_name + ').csv'
+# results.to_csv(results_path + results_file_name)
 
 print("\nTotal runtime was: " + str(time.time() - start_time) + " seconds")
