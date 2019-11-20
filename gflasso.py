@@ -231,7 +231,7 @@ def proximal_gradient_descent(G, X, Y, lambda_, gamma, epsilon, max_iter, corr_f
         print("Best val MSE: " + str(best_val_MSE))
         print("")
 
-    return B_t
+    return best_B_t
 
 def cross_validate(X, Y, G, lambda_, gamma, epsilon, max_iter, corr_func, corr_thresh=None, num_folds=5):
     """
@@ -333,7 +333,7 @@ model_name = 'GFLasso'
 
 #  ===================== TRAINING SECTION ========================
 print("Retrieving data ....")
-drug_names = pd.read_csv(data_path + 'drug_drug_similarity.csv',index_col=0, header=None, low_memory=False).T.set_index('drug').apply(pd.to_numeric)
+drug_names = pd.read_csv(data_path + 'drug_drug_similarity_expr.csv',index_col=0, header=None, low_memory=False).T.set_index('drug').apply(pd.to_numeric)
 train_x = pd.read_csv(data_path + 'gdsc_expr_postCB(normalized).csv', index_col=0, header=None, low_memory=False).T.set_index('cell line id').apply(pd.to_numeric)#.iloc[:,0:500]
 train_y = pd.read_csv(data_path + 'gdsc_dr_lnIC50.csv', index_col=0, header=None, low_memory=False).T.set_index('cell line id').apply(pd.to_numeric)#.iloc[:,]
 
@@ -350,53 +350,54 @@ Y = train_y.values
 print("Data ready to train")
 
 # Hyperarameters to test for grid search
-parameters = {
-    'lambda_':[10],
-    'gamma':[10],
-    'epsilon':[1],
-    'max_iter':[50],
-    'corr_func':['absolute'],
-    'corr_thresh':[1]
-}
-best_params, best_train_score, best_val_score = grid_search_cv(X=X, Y=Y, G=correlation_matrix, parameters=parameters, num_folds=5)
-#beta = proximal_gradient_descent(X=X, Y=Y, G=correlation_matrix, lambda_=1, gamma=1, epsilon=1, max_iter=50, corr_func='absolute', corr_thresh=None)
+# parameters = {
+#     'lambda_':[10],
+#     'gamma':[10],
+#     'epsilon':[1],
+#     'max_iter':[500],
+#     'corr_func':['absolute'],
+#     'corr_thresh':[1]
+# }
+# best_params, best_train_score, best_val_score = grid_search_cv(X=X, Y=Y, G=correlation_matrix, parameters=parameters, num_folds=5)
+beta = proximal_gradient_descent(X=X, Y=Y, G=correlation_matrix, lambda_=10, gamma=10, epsilon=1, max_iter=100, corr_func='absolute', corr_thresh=None)
 
 #  ===================== TESTING SECTION ========================
-# print("Retrieving data for test ....")
-# x_test = pd.read_csv(data_path + 'tcga_expr_postCB(normalized).csv', index_col=0, header=None, low_memory=False).T.set_index('patient id').apply(pd.to_numeric)#.iloc[:,0:500]
-# y_test = pd.read_csv(data_path + 'tcga_dr.csv', index_col=0, header=None, low_memory=False).T.set_index('patient id')
-# y_test_binary = category_to_binary(y_test)
+print("Retrieving data for test ....")
+x_test = pd.read_csv(data_path + 'tcga_expr_postCB(normalized).csv', index_col=0, header=None, low_memory=False).T.set_index('patient id').apply(pd.to_numeric)#.iloc[:,0:500]
+y_test = pd.read_csv(data_path + 'tcga_dr.csv', index_col=0, header=None, low_memory=False).T.set_index('patient id')
+y_test = y_test.filter(drug_names)
+y_test_binary = category_to_binary(y_test)
 
-# # Matrix to store drug statistics, including t-statistic and p-value for each drug
-# results = y_test.describe().T.join(pd.DataFrame(index=y_test.columns, columns=['T-statistic', 'P-value']))
-# results = results.drop(["count", "unique", "top", "freq"], axis=1)
+# Matrix to store drug statistics, including t-statistic and p-value for each drug
+results = y_test.describe().T.join(pd.DataFrame(index=y_test.columns, columns=['T-statistic', 'P-value']))
+results = results.drop(["count", "unique", "top", "freq"], axis=1)
 
-# # Predict y_test
-# print("Predicting y test...")
-# print(x_test.shape)
-# print(beta.shape)
-# preds = np.real(np.matmul(x_test.values, beta))
-# y_test_prediction = pd.DataFrame(data=preds, index=y_test.index, columns=y_test.columns)
+# Predict y_test
+print("Predicting y test...")
+print(x_test.shape)
+print(beta.shape)
+preds = np.real(np.matmul(x_test.values, beta))
+y_test_prediction = pd.DataFrame(data=preds, index=y_test.index, columns=y_test.columns)
 
-# # For each drug, execute a t-test and store the results
-# for drug in y_test_binary.columns:
+# For each drug, execute a t-test and store the results
+for drug in y_test_binary.columns:
 
-#     # Get the drug response vector for a single drug
-#     y_test_prediction_single = y_test_prediction[drug] # assign column headers to y_test_prediction
-#     y_test_actual_single = y_test_binary[drug]
+    # Get the drug response vector for a single drug
+    y_test_prediction_single = y_test_prediction[drug] # assign column headers to y_test_prediction
+    y_test_actual_single = y_test_binary[drug]
 
-#     # Get sample groups for category 0 and category 1
-#     drug_responses_0, drug_responses_1 = get_t_test_groups(y_test_actual_single.values, y_test_prediction_single)
+    # Get sample groups for category 0 and category 1
+    drug_responses_0, drug_responses_1 = get_t_test_groups(y_test_actual_single.values, y_test_prediction_single)
 
-#     # Perform T-test
-#     print("Performing t-test for drug: " + str(drug))
-#     drug_responses_0, drug_responses_1 = get_t_test_groups(y_test_actual_single.values, y_test_prediction_single)
-#     t, p = one_tailed_t_test(drug_responses_0, drug_responses_1)
-#     results.loc[drug, 'T-statistic'] = t
-#     results.loc[drug, 'P-value'] = p
+    # Perform T-test
+    print("Performing t-test for drug: " + str(drug))
+    drug_responses_0, drug_responses_1 = get_t_test_groups(y_test_actual_single.values, y_test_prediction_single)
+    t, p = one_tailed_t_test(drug_responses_0, drug_responses_1)
+    results.loc[drug, 'T-statistic'] = t
+    results.loc[drug, 'P-value'] = p
 
-# # Store results in csv file
-# results_file_name = 'results(' + model_name + ').csv'
-# results.to_csv(results_path + results_file_name)
+# Store results in csv file
+results_file_name = 'results(' + model_name + ').csv'
+results.to_csv(results_path + results_file_name)
 
 print("\nTotal runtime was: " + str(time.time() - start_time) + " seconds")
