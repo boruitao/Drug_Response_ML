@@ -1,5 +1,6 @@
 import numpy as np
 import pandas as pd
+import csv
 
 from sklearn.preprocessing import StandardScaler
 from sklearn_pandas import DataFrameMapper
@@ -89,10 +90,10 @@ results_path = '../Results/'
 model_name = 'LassoCV'
 
 # Load training and test set
-x_train = pd.read_csv(data_path + 'gdsc_expr_postCB(normalized).csv', index_col=0, header=None).T.set_index('cell line id').apply(pd.to_numeric)#.iloc[0:200, 0:200]
-y_train = pd.read_csv(data_path + 'gdsc_dr_lnIC50.csv', index_col=0, header=None).T.set_index('cell line id').apply(pd.to_numeric)#.iloc[0:200, ]
-x_test = pd.read_csv(data_path + 'tcga_expr_postCB(normalized).csv', index_col=0, header=None).T.set_index('patient id').apply(pd.to_numeric)#.iloc[0:200, 0:200]
-y_test = pd.read_csv(data_path + 'tcga_dr.csv', index_col=0, header=None).T.set_index('patient id')#.iloc[0:200, ]
+x_train = pd.read_csv(data_path + 'gdsc_expr_postCB(normalized).csv', index_col=0, header=None).T.set_index('cell line id').apply(pd.to_numeric).iloc[0:200, 0:200]
+y_train = pd.read_csv(data_path + 'gdsc_dr_lnIC50.csv', index_col=0, header=None).T.set_index('cell line id').apply(pd.to_numeric).iloc[0:200, ]
+x_test = pd.read_csv(data_path + 'tcga_expr_postCB(normalized).csv', index_col=0, header=None).T.set_index('patient id').apply(pd.to_numeric).iloc[0:200, 0:200]
+y_test = pd.read_csv(data_path + 'tcga_dr.csv', index_col=0, header=None).T.set_index('patient id').iloc[0:200, ]
 y_test_binary = category_to_binary(y_test)
 
 # Normalize data for mean 0 and standard deviation of 1
@@ -135,6 +136,16 @@ for drug in y_train:
     t, p = one_tailed_t_test(drug_responses_0, drug_responses_1)
     results.loc[drug, 'T-statistic'] = t
     results.loc[drug, 'P-value'] = p
+
+    # Store the resistant and sensitive lists
+    list_0_name = str(drug) + '_resistant.csv'
+    list_1_name = str(drug) + '_resistant.csv'
+    with open(results_path + list_0_name, 'w', newline='') as f0:
+        wr0 = csv.writer(f0, quoting=csv.QUOTE_ALL)
+        wr0.writerow(list_0_name)
+    with open(results_path + list_1_name, 'w', newline='') as f1:
+        wr1 = csv.writer(f1, quoting=csv.QUOTE_ALL)
+        wr1.writerow(list_1_name)
 
 # Store predictions and results in csv files
 prediction_file_name = 'tcga_dr_prediction(' + model_name + ').csv'
